@@ -11,6 +11,8 @@ const APP_URL = () => env("APP_URL") || "https://bakanova127-pixel.github.io/lif
 const PHOTO = () => env("WELCOME_PHOTO") || "https://bakanova127-pixel.github.io/lifebyme/welcome.jpg";
 const TRIAL_DAYS = () => +env("TRIAL_DAYS") || 3;
 const DAY = 864e5;
+const PROD_URL = () => (env("PRODAMUS_URL") || "").replace(/\/+$/, "");
+const PROD_KEY = () => env("PRODAMUS_KEY");
 
 let DB = null;
 const db = () => DB || (DB = env("YDB_ENDPOINT") ? ydbDb() : memoryDb());
@@ -50,11 +52,70 @@ async function touch(from) {
   return u;
 }
 
+// ---------- Продамус ----------
+// Подпись как в официальной библиотеке Продамуса (Hmac::create): все значения → строки, ключи сортируются рекурсивно, JSON без экранирования юникода, HMAC-SHA256.
+function prodSort(v) {
+  if (Array.isArray(v)) return v.map(prodSort);
+  if (v && typeof v === "object") { const o = {}; Object.keys(v).sort(phpKeyCmp).forEach(k => o[k] = prodSort(v[k])); return o; }
+  return v == null ? "" : String(v);
+}
+function phpKeyCmp(a, b) { const na = /^-?\d+$/.test(a), nb = /^-?\d+$/.test(b); if (na && nb) return +a - +b; return a < b ? -1 : a > b ? 1 : 0; }
+function isList(o) { const ks = Object.keys(o); return ks.length > 0 && ks.every((k, i) => k === String(i)); }
+function phpJson(v, slashes) {
+  if (Array.isArray(v)) return "[" + v.map(x => phpJson(x, slashes)).join(",") + "]";
+  if (v && typeof v === "object") { if (isList(v)) return "[" + Object.keys(v).map(k => phpJson(v[k], slashes)).join(",") + "]"; return "{" + Object.keys(v).map(k => JSON.stringify(k) + ":" + phpJson(v[k], slashes)).join(",") + "}"; }
+  let s = JSON.stringify(String(v)); if (slashes) s = s.replace(/\//g, "\\/"); return s;
+}
+function prodSign(data, slashes = true) { return crypto.createHmac("sha256", PROD_KEY()).update(phpJson(prodSort(data), slashes)).digest("hex"); }
+function parseForm(raw) { // products[0][name]=… → вложенный объект, как $_POST в PHP
+  const out = {};
+  for (const [k, v] of new URLSearchParams(raw)) {
+    const parts = k.replace(/\]/g, "").split("["); let o = out;
+    parts.forEach((p, i) => { if (i === parts.length - 1) o[p] = v; else o = o[p] = o[p] && typeof o[p] === "object" ? o[p] : {}; });
+  }
+  return out;
+}
+function payLink(u, plan) {
+  if (!PROD_URL()) return null;
+  const data = { do: "pay", order_id: `lbm-${u.id}-${plan.id}-${Date.now()}`, customer_extra: `Life by me Club — ${plan.t}`, products: [{ name: `Life by me Club — ${plan.t}`, price: String(plan.price), quantity: "1" }] };
+  if (env("BOT_USERNAME")) { data.urlSuccess = `https://t.me/${env("BOT_USERNAME")}`; data.urlReturn = `https://t.me/${env("BOT_USERNAME")}`; }
+  if (PROD_KEY()) data.signature = prodSign(data);
+  const q = new URLSearchParams();
+  const add = (pre, v) => { if (v && typeof v === "object") Object.entries(v).forEach(([k, x]) => add(`${pre}[${k}]`, x)); else q.append(pre, v); };
+  Object.entries(data).forEach(([k, v]) => add(k, v));
+  return `${PROD_URL()}/?${q.toString()}`;
+}
+async function onProdamus(raw, headers, ctype) {
+  let data = {}; try { data = /json/.test(ctype || "") || /^\s*\{/.test(raw) ? JSON.parse(raw) : parseForm(raw); } catch (e) { data = parseForm(raw); }
+  const sign = (headers["sign"] || "").toLowerCase();
+  const ok = !!PROD_KEY() && !!sign && (prodSign(data, true) === sign || prodSign(data, false) === sign);
+  const orderNum = String(data.order_num || data.order_id || ""); const m = orderNum.match(/^lbm-(\d+)-(\w+)-(\d+)$/);
+  const plan = m && T.PLANS.find(p => p.id === m[2]); const sum = parseFloat(String(data.sum || "0").replace(",", "."));
+  const success = String(data.payment_status || "").toLowerCase() === "success";
+  console.log("prodamus", JSON.stringify({ orderNum, status: data.payment_status, sum, ok }));
+  if (!success) return [200, "success"];
+  if (!ok || !m || !plan || sum + 0.01 < plan.price) {
+    if (ADMIN()) await tg("sendMessage", { chat_id: ADMIN(), text: `⚠️ Пришло уведомление об оплате, но я не смогла его подтвердить (${!ok ? "подпись не совпала" : !plan ? "неизвестный заказ" : "сумма меньше тарифа"}).\nЗаказ: ${orderNum}\nСумма: ${data.sum}\nПроверь в кабинете Продамуса и при необходимости выдай доступ: /give ${m ? m[1] : "ID"} ${plan ? plan.days : 30}` });
+    return [ok ? 200 : 400, ok ? "success" : "bad sign"];
+  }
+  const u = await db().getUser(+m[1]); if (!u) return [200, "success"];
+  const rem = new Set((u.rem || "").split(",").filter(Boolean)); const tag = "o" + m[3];
+  if (rem.has(tag)) return [200, "success"]; // уже засчитано
+  const base = u.paid && u.paid >= mskDay() ? u.paid : mskDay();
+  u.paid = addDays(base, plan.days); rem.add(tag); u.rem = [...rem].filter(x => !x.startsWith("p")).slice(-20).join(",");
+  await db().putUser(u);
+  await tg("sendMessage", { chat_id: u.id, parse_mode: "HTML", text: T.paid(plan.t, ru(u.paid)), reply_markup: { inline_keyboard: [[btnApp()]] } });
+  if (ADMIN()) await tg("sendMessage", { chat_id: ADMIN(), parse_mode: "HTML", text: `💰 <b>Оплата!</b> ${esc(u.name)}${u.username ? " @" + esc(u.username) : ""}\nТариф: ${plan.t} — ${data.sum} ₽\nДоступ до ${ru(u.paid)}` });
+  return [200, "success"];
+}
+
 // ---------- keyboards ----------
 const btnApp = (t = "✨ Открыть приложение") => ({ text: t, web_app: { url: APP_URL() } });
 const kbMain = () => ({ inline_keyboard: [[btnApp()], [{ text: "🌸 Что внутри клуба", callback_data: "inside" }], [{ text: "💳 Тарифы", callback_data: "plans" }, { text: "❓ Вопросы", callback_data: "faq" }]] });
 const kbBack = () => ({ inline_keyboard: [[btnApp("✨ Попробовать бесплатно")], [{ text: "⬅️ Назад", callback_data: "back" }]] });
 const kbPlans = () => ({ inline_keyboard: [[{ text: "💳 Оплатить", callback_data: "pay" }], [btnApp("✨ Попробовать бесплатно")], [{ text: "⬅️ Назад", callback_data: "back" }]] });
+const kbPayLinks = u => { const rows = T.PLANS.map(p => { const url = payLink(u, p); return url ? [{ text: `${p.e} ${p.t} — ${p.price.toLocaleString("ru-RU")} ₽`, url }] : null; }).filter(Boolean); return rows.length ? { inline_keyboard: rows } : null; };
+async function sendPay(chat, u) { const kb = kbPayLinks(u); if (kb) return tg("sendMessage", { chat_id: chat, text: T.payChoose, reply_markup: kb }); return tg("sendMessage", { chat_id: chat, text: T.payManual(ADMIN_NICK()) }); }
 const kbPay = () => ({ inline_keyboard: [[{ text: "💳 Тарифы и оплата", callback_data: "plans" }], [btnApp("Открыть приложение")]] });
 
 // ---------- bot ----------
@@ -111,7 +172,7 @@ async function adminCmd(text, chat) {
 async function onMessage(m) {
   const chat = m.chat.id; if (m.chat.type !== "private") return;
   const u = await touch(m.from); const text = (m.text || "").trim(); const isAdmin = +m.from.id === ADMIN();
-  if (text.startsWith("/start")) { await sendWelcome(chat); if (/pay|plans/.test(text)) await tg("sendMessage", { chat_id: chat, text: T.plans, parse_mode: "HTML", reply_markup: kbPlans() }); return; }
+  if (text.startsWith("/start")) { if (/pay/.test(text)) { await tg("sendMessage", { chat_id: chat, text: T.plans, parse_mode: "HTML" }); return sendPay(chat, u); } await sendWelcome(chat); if (/plans/.test(text)) await tg("sendMessage", { chat_id: chat, text: T.plans, parse_mode: "HTML", reply_markup: kbPlans() }); if (/help/.test(text)) await tg("sendMessage", { chat_id: chat, text: T.faq(ADMIN_NICK()), parse_mode: "HTML" }); return; }
   if (text === "/app") return tg("sendMessage", { chat_id: chat, text: T.openApp, reply_markup: { inline_keyboard: [[btnApp()]] } });
   if (text === "/plans") return tg("sendMessage", { chat_id: chat, text: T.plans, parse_mode: "HTML", reply_markup: kbPlans() });
   if (text === "/help") return tg("sendMessage", { chat_id: chat, text: T.faq(ADMIN_NICK()), parse_mode: "HTML", reply_markup: kbBack() });
@@ -131,7 +192,7 @@ async function onCallback(cq) {
   const d = cq.data, m = cq.message; await tg("answerCallbackQuery", { callback_query_id: cq.id });
   if (!m) return; await touch(cq.from);
   const pages = { inside: [T.inside, kbBack()], plans: [T.plans, kbPlans()], faq: [T.faq(ADMIN_NICK()), kbBack()], back: [T.welcome, kbMain()] };
-  if (d === "pay") return tg("sendMessage", { chat_id: m.chat.id, text: T.payManual(ADMIN_NICK()) });
+  if (d === "pay") return sendPay(m.chat.id, await db().getUser(cq.from.id));
   const p = pages[d]; if (!p) return;
   const base = { chat_id: m.chat.id, message_id: m.message_id, parse_mode: "HTML", reply_markup: p[1] };
   const r = m.photo ? await tg("editMessageCaption", { ...base, caption: p[0] }) : await tg("editMessageText", { ...base, text: p[0] });
@@ -154,7 +215,7 @@ async function api(action, body) {
   let u = await touch(user);
   if (action === "me") {
     if (!u.trial && +u.id !== ADMIN()) { u.trial = String(Date.now()); await db().putUser(u); }
-    return [200, { ...access(u), trialDays: TRIAL_DAYS(), admin: +u.id === ADMIN(), bot: env("BOT_USERNAME") }];
+    return [200, { ...access(u), trialDays: TRIAL_DAYS(), admin: +u.id === ADMIN(), bot: env("BOT_USERNAME"), plans: T.PLANS.map(p => ({ id: p.id, t: p.t, e: p.e, price: p.price, note: p.note || "", url: payLink(u, p) })) }];
   }
   if (action === "club") {
     const ch = String(body.ch || "").slice(0, 60); if (!ch) return [400, { error: "ch" }];
@@ -212,6 +273,7 @@ module.exports.handler = async function (event, context) {
       return { statusCode: 200, body: "ok" };
     }
     if (a === "me" || a === "club") { const [c, o] = await api(a, body); return reply(c, o); }
+    if (a === "prodamus") { const [c, t] = await onProdamus(raw, h, h["content-type"]); return { statusCode: c, headers: { "Content-Type": "text/plain" }, body: t }; }
     if (a === "setup") {
       if (!env("WEBHOOK_SECRET") || qs.s !== env("WEBHOOK_SECRET")) return reply(403, { error: "нужен правильный секрет: ?a=setup&s=..." });
       const self = env("FUNCTION_URL") || `https://functions.yandexcloud.net/${context && context.functionName}`;
@@ -225,4 +287,4 @@ module.exports.handler = async function (event, context) {
     return reply(500, { error: String(e && e.message || e) });
   }
 };
-module.exports._test = { checkInitData, access, setDb, setTgFetch, reminders, mskDay, addDays };
+module.exports._test = { checkInitData, access, setDb, setTgFetch, reminders, mskDay, addDays, prodSign, parseForm, payLink, phpJson, prodSort };

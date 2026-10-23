@@ -934,9 +934,10 @@ function openBot(payload){const b=S.acc&&S.acc.bot;if(!b){toast("Напиши в
 function renderPaywall(){$("tabbar").hidden=true;const a=S.acc||{};const app=$("app");const was=a.paidWas;
   app.replaceChildren(el("div",{class:"brand"},el("span",{class:"logo"},"Life by me"),el("span",{class:"club"},"club")),
     el("header",{class:"hero"},el("div",{},el("div",{class:"date"},was?"доступ закончился":"пробный период закончился"),el("h1",{},"Продолжим вместе?"),el("div",{class:"sub"},"Все твои дела, привычки, челленджи и значки сохранены 🤍"))),
-    el("div",{class:"card"},el("h2",{},"Тарифы клуба"),el("ul",{class:"list"},[["💗","1 месяц","590 ₽"],["🌸","3 месяца","1 490 ₽ · выгода 16%"],["✨","6 месяцев","2 690 ₽ · выгода 24%"],["👑","Год","4 490 ₽ · выгода 37%"]].map(([e,t,pr])=>el("li",{class:"item"},el("span",{"aria-hidden":"true"},e),el("span",{class:"txt"},t,el("span",{class:"meta"},pr))))),
-      el("button",{class:"btn full",type:"button",onclick:()=>openBot("pay")},"💳 Выбрать тариф"),el("button",{class:"btn ghost full",type:"button",onclick:()=>openBot("help")},"Написать Яне")),
-    el("p",{class:"muted",style:"text-align:center;font-size:.85rem"},"После оплаты просто открой приложение снова 🌸"))}
+    el("div",{class:"card"},el("h2",{},"Тарифы клуба"),
+      (a.plans||[]).length?el("div",{style:"display:flex;flex-direction:column;gap:8px"},a.plans.map((pl,i)=>el("button",{class:i===1?"btn full":"btn ghost full",type:"button",style:"display:flex;justify-content:space-between;align-items:center;gap:8px;text-align:left",onclick:()=>{haptic("light");if(pl.url){try{tg.openLink(pl.url)}catch(e){location.href=pl.url}}else openBot("pay")}},el("span",{},`${pl.e} ${pl.t}`,pl.note?el("small",{style:"display:block;font-weight:400;opacity:.85"},pl.note):null),el("b",{},pl.price.toLocaleString("ru-RU")+" ₽")))):el("button",{class:"btn full",type:"button",onclick:()=>openBot("pay")},"💳 Выбрать тариф"),
+      el("button",{class:"btn ghost full",type:"button",onclick:()=>openBot("help")},"Написать Яне")),
+    el("p",{class:"muted",style:"text-align:center;font-size:.85rem"},"Оплата картой через Продамус. После оплаты бот пришлёт сообщение — просто открой приложение снова 🌸"))}
 function dayMask(d){if(!d)return 0;let m=0;const hab=cfg().habits||[];
   const any=(d.done||[]).length||(d.tasks||[]).some(t=>t.d)||(d.rd||[]).length||(d.water||0)>0||wkDone(d)||d.zr||(d.focus&&d.focus.d)||(d.gr||[]).some(Boolean)||d.win||(d.exp||[]).length||(d.sl&&(d.sl.b||d.sl.q));
   if(any)m|=1;if(wkDone(d)||d.wmin)m|=2;if((d.water||0)>=(cfg().water||8))m|=4;if(d.zr)m|=8;if((d.gr||[]).some(Boolean)||d.win)m|=16;if((d.exp||[]).length)m|=32;if(hab.length&&hab.every(h=>(d.done||[]).includes(h)))m|=64;return m}
@@ -1384,7 +1385,7 @@ function renderMe(app){const c=cfg();app.append(el("div",{class:"hero"},el("div"
     el("div",{},el("b",{style:"font-family:var(--display);font-size:1.6rem;display:block"},days),el("span",{class:"muted",style:"font-size:.8rem"},"дней с отметками")),
     el("div",{},el("b",{style:"font-family:var(--display);font-size:1.6rem;display:block"},str),el("span",{class:"muted",style:"font-size:.8rem"},"тренировок")),
     el("div",{},el("b",{style:"font-family:var(--display);font-size:1.6rem;display:block"},Math.max(0,...c.habits.map(streak))),el("span",{class:"muted",style:"font-size:.8rem"},"лучшая серия")))));
-  if(S.acc&&S.acc.kind!=="admin")app.append(el("div",{class:"card"},el("h2",{},"Мой доступ"),el("p",{style:"margin:0"},S.acc.kind==="paid"?`Клуб оплачен до ${fmtDate(S.acc.until)} 💗`:S.acc.kind==="trial"?`Пробный период: осталось ${S.acc.daysLeft} ${plural(S.acc.daysLeft,"день","дня","дней")} 🎁`:"Доступ закончился"),el("button",{class:"btn ghost",type:"button",onclick:()=>openBot("plans")},S.acc.kind==="paid"?"Продлить":"Тарифы клуба")));
+  if(S.acc&&S.acc.kind!=="admin")app.append(el("div",{class:"card"},el("h2",{},"Мой доступ"),el("p",{style:"margin:0"},S.acc.kind==="paid"?`Клуб оплачен до ${fmtDate(S.acc.until)} 💗`:S.acc.kind==="trial"?`Пробный период: осталось ${S.acc.daysLeft} ${plural(S.acc.daysLeft,"день","дня","дней")} 🎁`:"Доступ закончился"),el("button",{class:"btn ghost",type:"button",onclick:()=>openBot("pay")},S.acc.kind==="paid"?"Продлить доступ":"Тарифы и оплата")));
   app.append(badgesCard());
   app.append(themePicker());
   const plan=wkPlan(c);
@@ -1393,7 +1394,7 @@ function renderMe(app){const c=cfg();app.append(el("div",{class:"hero"},el("div"
     el("p",{class:"muted",style:"margin:0"},`Силовая ${c.minutes} мин · кардио ${c.cardioMin||30} мин · растяжка 15 мин`),
     (()=>{const bi=bdayInfo(c,TODAY);return el("p",{class:"muted",style:"margin:0"},bi?(bi.isToday?"🎂 Сегодня твой день рождения!":`🎂 День рождения ${bi.date} — через ${bi.days} дн.`):"🎂 День рождения не указан")})(),
     el("button",{class:"btn ghost",type:"button",onclick:()=>{ob={step:1,data:Object.assign({},DEF,S.settings)};renderOb()}},"Изменить настройки")));
-  app.append(el("p",{class:"muted",style:"font-size:.8rem;text-align:center;margin:8px 0 0"},(inTG?"Твои данные хранятся в твоём аккаунте Telegram и видны только тебе.":"Превью: данные хранятся только в этом браузере.")+" · версия 15"))}
+  app.append(el("p",{class:"muted",style:"font-size:.8rem;text-align:center;margin:8px 0 0"},(inTG?"Твои данные хранятся в твоём аккаунте Telegram и видны только тебе.":"Превью: данные хранятся только в этом браузере.")+" · версия 16"))}
 
 /* ================= boot ================= */
 async function boot(){render();
