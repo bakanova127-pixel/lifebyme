@@ -285,6 +285,12 @@ input[type="time"],input[type="date"],select{border:1px solid var(--line);border
 .catrow.head span{font-size:.72rem;color:var(--muted)}
 .catrow .x{border:0;background:none;color:var(--muted);font-size:1.2rem;padding:0}
 
+.phl{margin:0;padding-left:18px;font-size:.84rem;color:var(--muted);display:flex;flex-direction:column;gap:3px}
+.evform{display:flex;flex-direction:column;gap:8px;background:var(--rose-soft);border-radius:18px;padding:12px}
+.chk{display:flex;align-items:center;gap:8px;font-size:.9rem;align-self:end;padding-bottom:10px}
+.chk input{width:20px;height:20px;accent-color:var(--rose)}
+.evi .evemo{width:32px;text-align:center;font-size:1.2rem;flex:none}
+
 /* tab bar */
 .tabbar{position:fixed;left:0;right:0;bottom:0;z-index:15;background:var(--paper);border-top:1px solid var(--line);padding:6px max(10px, env(safe-area-inset-right,0px)) calc(6px + var(--safe-bottom)) max(10px, env(safe-area-inset-left,0px))}
 .tabbar .in{max-width:520px;margin:0 auto;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:2px}
@@ -391,7 +397,7 @@ const PH={
  "Фолликулярная":{c:"var(--sage)",t:"Энергии больше всего — лучшее время усложнять тренировки.",f:["Белок в каждый приём пищи","Свежие овощи и зелень","Хорошее время для новых привычек"]},
  "Около овуляции":{c:"var(--butter)",t:"Силы на пике: тренируйся в полную силу, но не забывай разминку.",f:["Лёгкие блюда с клетчаткой","Сложные углеводы перед тренировкой","Больше воды"]},
  "Лютеиновая":{c:"var(--sky)",t:"Может быть меньше сил и тянуть на сладкое — это нормально.",f:["Фрукты, финики, тёмный шоколад вместо конфет","Магний: орехи, семечки, бананы","Регулярные приёмы пищи, поменьше соли"]}};
-function phaseOf(c,k){if(!c||!c.start)return null;const len=c.len||28,per=c.per||5,diff=diffDays(k,c.start);if(diff<0)return null;const day=diff%len+1,ov=len-14;
+function phaseOf(c,k){if(!c||!c.start)return null;const len=c.len||28,per=c.per||5,diff=diffDays(k,c.start);const day=((diff%len)+len)%len+1,ov=len-14;
   const key=day<=per?"Менструальная":day<ov-1?"Фолликулярная":day<=ov+1?"Около овуляции":"Лютеиновая";const next=shift(c.start,(Math.floor(diff/len)+1)*len);return Object.assign({key,day,len,next,daysTo:diffDays(next,k)},PH[key])}
 
 /* workout library (works without AI; the bot will replace it with personal plans) */
@@ -415,8 +421,13 @@ const WK={
   {id:"mob",t:"Утренняя мобилити",ex:[["Круги головой и плечами","1 мин","медленно",""],["Кошка-корова","10 раз","",""],["Круги тазом","10 в каждую сторону","",""],["Наклоны в стороны","10 на сторону","",""],["Присед с паузой внизу","8 раз","пятки на полу",""],["Вращения грудного отдела на четвереньках","по 8","взгляд за рукой",""]]}]};
 const EQUIP={dumb:"Гантели",band:"Резинка",w:"Утяжелители",roll:"Ролл",blocks:"Блоки для йоги"};
 function wkPlan(c){if(c.plan)return c.plan;const p={};for(let dw=0;dw<7;dw++)p[dw]=(c.strength||[]).includes(dw)?"strength":(c.stretch&&dw!==0?"stretch":"rest");return p}
-function wkType(k){const d=S.days[k];if(d&&d.wkt&&WT[d.wkt])return d.wkt;return wkPlan(cfg())[parseKey(k).getUTCDay()]||"rest"}
-function wkVariant(k){const type=wkType(k),list=WK[type];if(!list)return null;const d=S.days[k];if(d&&d.wkv){const v=list.find(x=>x.id===d.wkv);if(v)return v}
+function wkPlanned(k){return wkPlan(cfg())[parseKey(k).getUTCDay()]||"rest"}
+function wkAuto(k){const c=cfg();if(!c.cycleOn)return null;const d=S.days[k];if(d&&d.wkt)return null;const p=phaseOf(S.cycle,k);const pl=wkPlanned(k);if(p&&p.key==="Менструальная"&&p.day<=2&&(pl==="strength"||pl==="cardio"))return "stretch";return null}
+function wkType(k){const d=S.days[k];if(d&&d.wkt&&WT[d.wkt])return d.wkt;return wkAuto(k)||wkPlanned(k)}
+const PHASE_WK={"Менструальная":"меньше подходов, кардио — прогулка; в первые 2 дня вместо силовой и кардио — мягкая растяжка","Фолликулярная":"энергии больше всего — добавляю повторы","Около овуляции":"пик сил — можно тренироваться в полную силу","Лютеиновая":"умеренная нагрузка, без интервалов и рекордов"};
+function wkVariant(k){const v=wkVariant0(k),type=wkType(k),list=WK[type];if(!v||!list)return v;const d=S.days[k];if(d&&d.wkv)return v;if(wkAuto(k))return list.find(x=>x.id==="relax")||v;const c=cfg();const p=c.cycleOn?phaseOf(S.cycle,k):null;
+  if(type==="cardio"&&p){if(p.key==="Менструальная")return list.find(x=>x.id==="walk")||v;if(p.key==="Лютеиновая"&&v.id==="hiit")return list.find(x=>x.id==="low")||v}return v}
+function wkVariant0(k){const type=wkType(k),list=WK[type];if(!list)return null;const d=S.days[k];if(d&&d.wkv){const v=list.find(x=>x.id===d.wkv);if(v)return v}
   const plan=wkPlan(cfg()),dw=parseKey(k).getUTCDay(),order=[1,2,3,4,5,6,0].filter(x=>plan[x]===type);const i=Math.max(0,order.indexOf(dw));
   if(type==="strength"){if(order.length===1)return list.find(x=>x.id==="full");return list[i%(order.length>3?4:3)]}
   const wn=Math.floor(diffDays(k,"2026-01-05")/7);return list[((i+wn)%list.length+list.length)%list.length]}
@@ -426,11 +437,34 @@ function wkPool(type){const seen=new Set(),out=[];(WK[type]||[]).forEach(v=>v.ex
 function wkBuild(k){const c=cfg(),type=wkType(k),v=wkVariant(k);if(!v)return {type,v:null,ex:[],note:"",min:0};const inv=c.inventory||[],has=x=>inv.includes(x);const ph=c.cycleOn?phaseOf(S.cycle,k):null;const phase=ph&&ph.key;
   const ex=wkEx(v).filter(([n,,,q,own])=>own||!(q==="band:"&&!has("Резинка"))&&!(q==="roll:"&&!has("Ролл"))).map(([n,reps,tip,q,own])=>{let name=n;if(!own)for(const part of (q||"").split("|")){const [kk,txt]=part.split(":");if(kk&&EQUIP[kk]&&has(EQUIP[kk])&&txt){name=`${n} ${txt}`;break}}
     let r=reps;if(type==="strength"&&!own){if(phase==="Менструальная")r=r.replace(/^3 ×/,"2 ×");else if(phase==="Фолликулярная"||phase==="Около овуляции")r=r.replace(/× (\d+)(?! сек)/,(mm,a)=>"× "+(+a+2))}return {key:n,n:name,r,tip}});
-  let note="";if(phase==="Менструальная")note=type==="cardio"?"Дни месячных: выбери прогулку или лёгкое кардио, по самочувствию.":type==="strength"?"Облегчённая версия на дни месячных — делай по самочувствию.":"";
+  const auto=wkAuto(k);let note="";if(auto)note=`Первые дни месячных: вместо «${WT[wkPlanned(k)].l.toLowerCase()}» — мягкая растяжка. Если чувствуешь силы, выбери другое выше.`;else if(phase==="Менструальная")note=type==="cardio"?"Дни месячных: выбери прогулку или лёгкое кардио, по самочувствию.":type==="strength"?"Облегчённая версия на дни месячных — делай по самочувствию.":"";
   else if(type==="strength"&&(phase==="Фолликулярная"||phase==="Около овуляции"))note="Фаза сил: добавила повторов.";
-  return {type,v,ex,note,min:wkMinutes(type,c)}}
+  else if(phase==="Лютеиновая"&&type!=="stretch")note="Лютеиновая фаза: умеренная нагрузка, слушай себя.";
+  return {type,v,ex,note,min:wkMinutes(type,c),auto:!!auto}}
 function wkDone(d){return !!(d&&((d.wkd||[]).length>=3||(d.wk||[]).length>=4||d.feel))}
 function setMyw(id,list){S.myw=Object.assign({},S.myw||{});if(list)S.myw[id]=list;else delete S.myw[id];setBig("myw",S.myw);render()}
+
+/* ---------- important dates ---------- */
+const EVK={bday:{e:"🎂",l:"День рождения"},holiday:{e:"🎉",l:"Праздник"},trip:{e:"✈️",l:"Путешествие"},other:{e:"⭐",l:"Событие"}};
+function setEv(v){S.ev=v;setBig("ev",v);render()}
+function isLeap(y){return y%4===0&&(y%100!==0||y%400===0)}
+function evNext(e,from){if(!e.yearly)return e.date;const md=e.date.slice(5);const mk=y=>md==="02-29"&&!isLeap(y)?`${y}-02-28`:`${y}-${md}`;let y=+from.slice(0,4);let k=mk(y);if(k<from)k=mk(y+1);return k}
+function evOn(k){return (S.ev||[]).filter(e=>e.kind==="trip"&&e.end?(k>=e.date&&k<=e.end):(e.yearly?evNext(e,k)===k:e.date===k))}
+function evAge(e,k){if(e.kind!=="bday"||!e.year)return null;const a=+k.slice(0,4)-e.year;return a>0?a:null}
+function evName(e,k){const age=k?evAge(e,k):null;return e.kind==="bday"?`День рождения: ${e.t}${age?` (${age})`:""}`:e.t}
+function evForm(){const kind=ui.evKind||"bday";const f=el("div",{class:"evform"});
+  const kinds=el("div",{class:"chips"});Object.entries(EVK).forEach(([k,v])=>kinds.append(el("button",{class:"chip small",type:"button","aria-pressed":kind===k?"true":"false",onclick:()=>{ui.evKind=k;render()}},`${v.e} ${v.l}`)));
+  const t=el("input",{id:"evT",autocomplete:"off",placeholder:kind==="bday"?"Чей: Мама":kind==="trip"?"Куда: Сочи":kind==="holiday"?"Что: Новый год":"Что за событие"});
+  const dIn=el("input",{type:"date",id:"evD"}),eIn=el("input",{type:"date",id:"evE"});
+  const rs=el("select",{id:"evR","aria-label":"Когда напомнить"},[[2,"за 2 дня"],[1,"за 1 день"],[3,"за 3 дня"],[7,"за неделю"],[0,"в тот же день"]].map(([v,l])=>el("option",{value:String(v)},l)));
+  const yr=el("input",{type:"checkbox",id:"evY"});yr.checked=kind!=="trip"&&kind!=="other";
+  f.append(kinds,el("label",{class:"field",for:"evT"},"Название",t),
+    kind==="trip"?el("div",{class:"row2"},el("label",{class:"field"},"С",dIn),el("label",{class:"field"},"По",eIn)):el("label",{class:"field"},kind==="bday"?"Дата рождения (год — по желанию, покажу возраст)":"Дата",dIn),
+    el("div",{class:"row2"},el("label",{class:"field"},"Напомнить",rs),kind!=="trip"?el("label",{class:"chk"},yr,"каждый год"):el("span",{})),
+    el("button",{class:"btn",type:"button",onclick:()=>{const name=t.value.trim();if(!name){toast("Напиши название");return}if(!dIn.value){toast("Выбери дату");return}if(kind==="trip"&&eIn.value&&eIn.value<dIn.value){toast("Дата окончания раньше начала");return}
+      const y=+dIn.value.slice(0,4);const ev={id:newId(),kind,t:name,date:dIn.value,end:kind==="trip"?(eIn.value||dIn.value):null,yearly:kind!=="trip"&&yr.checked,remind:+rs.value,year:kind==="bday"&&y<+TODAY.slice(0,4)?y:null};
+      ui.evAdd=false;setEv((S.ev||[]).concat(ev));haptic("success");toast("Дата сохранена 🗓")}},"Сохранить"));
+  return f}
 
 /* ---------- tasks & repeats ---------- */
 function recOn(r,k){if(k<r.from)return false;if(r.until&&k>r.until)return false;if((r.skip||[]).includes(k))return false;const p=parseKey(k),dw=p.getUTCDay();
@@ -556,9 +590,9 @@ function setStyle(st,rerender=true){S.style=st;setBig("style",st,600);if(rerende
 /* ================= state ================= */
 const TODAY=keyOf(new Date());
 let cur=TODAY,tab="today";
-let S={settings:null,days:{},weight:{entries:[]},cycle:null,ch:null,vb:{text:"",aff:[],goals:[]},fin:null,fm:{},care:{procs:[],visits:[],ill:[]},books:[],style:{week:{},items:[]},rec:[],myw:{}};
+let S={settings:null,days:{},weight:{entries:[]},cycle:null,ch:null,vb:{text:"",aff:[],goals:[]},fin:null,fm:{},care:{procs:[],visits:[],ill:[]},books:[],style:{week:{},items:[]},rec:[],myw:{},ev:[]};
 const DEF={name:"",goals:[],target:null,start:null,habits:["Чтение 30 минут","Прогулка 30 минут"],water:8,strength:[1,3,5],stretch:true,plan:null,minutes:40,cardioMin:30,inventory:["Коврик"],cycleOn:false,skin:"garden"};
-const ui={dict:false,dictText:"",dictItems:null,askDel:null,wkEdit:false,care:null,proc:null,newCat:false,amt:"",note:"",budgetOpen:false,swap:0,catEdit:false,catDraft:null};
+const ui={dict:false,dictText:"",dictItems:null,askDel:null,wkEdit:false,care:null,proc:null,newCat:false,amt:"",note:"",budgetOpen:false,swap:0,catEdit:false,catDraft:null,opsAll:false,evAdd:false,evKind:"bday"};
 function cfg(){return Object.assign({},DEF,S.settings||{})}
 function day(k){return S.days[k]||{done:[],tasks:[],water:0}}
 function setDay(k,d){S.days[k]=d;save("d_"+k,d);render()}
@@ -635,10 +669,11 @@ function renderToday(app){const c=cfg(),d=day(cur),off=diffDays(cur,TODAY),p=pct
   if(off===0){const td=(d.exp||[]).reduce((a,x)=>a+x[0],0);const pd=perDayLeft();
     app.append(el("div",{class:"card money-mini",onclick:()=>show("money"),role:"button",tabindex:"0"},el("span",{class:"em","aria-hidden":"true"},"💸"),el("div",{style:"flex:1"},el("b",{},td?`Сегодня потрачено ${rub(td)}`:"Сегодня трат пока нет"),el("div",{class:"muted",style:"font-size:.85rem"},pd?(pd.left>0?`Можно ещё ${rub(Math.max(0,pd.perDay-td))} сегодня`:"Бюджет месяца исчерпан"):"Нажми, чтобы записать расход")),el("span",{class:"muted"},"›")))}
   if(off===0){const items=[];
+    (S.ev||[]).forEach(e=>{if(e.kind==="trip"&&e.end&&e.date<=TODAY&&TODAY<=e.end){items.push(["✈️",`Путешествие: ${e.t} — до ${fmtDate(e.end)}`]);return}const n=evNext(e,TODAY),dn=diffDays(n,TODAY);
+      if(dn===0)items.push([EVK[e.kind].e,`Сегодня! ${evName(e,n)}`]);else if(dn>0&&dn<=(e.remind??2))items.push([EVK[e.kind].e,`${dn===1?"Завтра":`Через ${dn} ${plural(dn,"день","дня","дней")}`}: ${evName(e,n)}${e.kind==="bday"?" — самое время подумать о подарке 🎁":""}`])});
     const ill=(S.care.ill||[]).find(x=>!x.to);if(ill)items.push(["🤍",`Ты отметила, что болеешь (${ill.t}). Отдыхай — тренировку можно пропустить без чувства вины.`]);
     (S.care.procs||[]).forEach(pr=>{const st=procStatus(pr);const at=pr.apptTm?" в "+pr.apptTm:"";if(pr.appt===TODAY)items.push(["💅",`Сегодня запись: ${pr.t}${at}`]);else if(pr.appt&&pr.appt===shift(TODAY,1))items.push(["💅",`Завтра запись: ${pr.t}${at}`]);else if(st.cls==="due")items.push(["💅",`Пора записаться: ${pr.t}`])});
     (S.care.visits||[]).forEach(v=>{const k=v.next&&v.next>=TODAY?v.next:(v.date>=TODAY?v.date:null);if(k&&diffDays(k,TODAY)<=3)items.push(["🩺",`${k===TODAY?"Сегодня":k===shift(TODAY,1)?"Завтра":fmtDate(k)}: ${v.doc}`])});
-    const ow=(S.style.week||{})[dd.getUTCDay()];if(ow)items.push(["👗",`Сегодня надеваю: ${ow}`]);
     if(items.length){const rc=el("div",{class:"card"},el("h2",{},"Не забудь"));const rl=el("div",{class:"remind"});items.forEach(([e,t])=>rl.append(el("div",{},el("span",{"aria-hidden":"true"},e),el("span",{},t))));rc.append(rl);app.append(rc)}}
   const affs=(S.vb.aff||[]).filter(Boolean);
   app.append(el("div",{class:"card"},el("p",{class:"quote"},QUOTES[doy%QUOTES.length])));
@@ -651,12 +686,13 @@ function renderToday(app){const c=cfg(),d=day(cur),off=diffDays(cur,TODAY),p=pct
   // tasks
   const tc=el("div",{class:"card"},el("div",{class:"hrow"},el("h2",{},"Дела"),el("button",{class:"chip small",type:"button","aria-pressed":ui.dict?"true":"false",onclick:()=>{ui.dict=!ui.dict;ui.dictItems=null;render()}},"🎤 надиктовать")));
   if(ui.dict)tc.append(dictBox());
-  const tl=el("ul",{class:"list"});const tasks=tasksFor(cur);
+  const tl=el("ul",{class:"list"});const tasks=tasksFor(cur);const evs=evOn(cur);
+  evs.forEach(e=>tl.append(el("li",{class:"item evi"},el("span",{class:"evemo","aria-hidden":"true"},EVK[e.kind].e),el("span",{class:"txt"},evName(e,cur),el("span",{class:"meta"},e.kind==="trip"?`путешествие до ${fmtDate(e.end)}`:"важная дата")))));
   tasks.forEach(x=>{const toggle=()=>{const n=Object.assign({},d);if(x.rec){const rd=n.rd||[];n.rd=x.d?rd.filter(id=>id!==x.rec.id):rd.concat(x.rec.id)}else n.tasks=(d.tasks||[]).map((y,j)=>j===x.i?Object.assign({},y,{d:!y.d}):y);haptic(x.d?"light":"medium");setDay(cur,n);if(!x.d&&pct(cur)>=1){haptic("success");toast("Всё сделано! 🌸")}};
     const del=()=>{if(x.rec){ui.askDel=x.rec.id;render()}else setDay(cur,Object.assign({},d,{tasks:(d.tasks||[]).filter((_,j)=>j!==x.i)}))};
     tl.append(el("li",{class:"item"+(x.d?" done":"")},checkBtn(x.d,x.t,toggle),x.tm?el("span",{class:"tm"},x.tm):null,el("span",{class:"txt"},x.t,x.rec?el("span",{class:"meta"},"🔁 "+repLabel(x.rec)):null),el("button",{class:"x",type:"button","aria-label":"Удалить "+x.t,onclick:del},"×")));
     if(x.rec&&ui.askDel===x.rec.id)tl.append(el("li",{class:"ask"},el("span",{},"Убрать:"),el("button",{class:"mini",type:"button",onclick:()=>{ui.askDel=null;skipRec(x.rec.id,cur)}},"только этот день"),el("button",{class:"mini",type:"button",onclick:()=>{ui.askDel=null;endRec(x.rec.id,cur)}},"все следующие"),el("button",{class:"mini",type:"button",onclick:()=>{ui.askDel=null;render()}},"отмена")))});
-  if(!tasks.length)tl.append(el("li",{class:"empty"},"На этот день дел нет. Добавь сама или надиктуй 🎤"));
+  if(!tasks.length&&!evs.length)tl.append(el("li",{class:"empty"},"На этот день дел нет. Добавь сама или надиктуй 🎤"));
   const ti=el("input",{id:"tIn",placeholder:"Новое дело…",autocomplete:"off"}),tt=el("input",{id:"tTm",type:"time","aria-label":"Время (по желанию)"});
   const rs=el("select",{id:"tRep","aria-label":"Повтор"},[["","без повтора"],["daily","каждый день"],["weekdays","по будням"],["weekly","каждую неделю"],["monthly","каждый месяц"]].map(([v,t])=>el("option",{value:v},t)));
   const dset=new Set([dd.getUTCDay()]);const drow=el("div",{class:"chips"});drow.hidden=true;[1,2,3,4,5,6,0].forEach(dw=>{const b=el("button",{class:"chip small",type:"button","aria-pressed":dset.has(dw)?"true":"false",onclick:()=>{dset.has(dw)?dset.delete(dw):dset.add(dw);b.setAttribute("aria-pressed",dset.has(dw)?"true":"false")}},WD[dw]);drow.append(b)});
@@ -741,8 +777,17 @@ function renderWeek(app){const c=cfg();const mon=mondayOf(cur);app.append(el("di
     el("div",{class:"card",style:"padding:12px;box-shadow:none"},el("b",{style:"font-family:var(--display);font-size:1.5rem"},`${wat}/7`),el("span",{class:"muted",style:"font-size:.8rem"},"норма воды"))));
   app.append(wc);
   const pc=el("div",{class:"card"},el("h2",{},"Дела на неделю"));
-  for(let i=0;i<7;i++){const k=shift(mon,i),ts=tasksFor(k),d2=parseKey(k);pc.append(el("button",{class:"wday"+(k===TODAY?" now":""),type:"button",onclick:()=>{cur=k;show("today")}},el("b",{},`${WDF[d2.getUTCDay()]}, ${fmtDate(k)}`),ts.length?el("span",{class:"wlist"},ts.slice(0,8).map(x=>el("span",{class:x.d?"done":""},(x.tm?x.tm+"  ":"")+x.t+(x.rec?" 🔁":"")))):el("span",{class:"muted",style:"font-size:.85rem"},"свободный день")))}
+  for(let i=0;i<7;i++){const k=shift(mon,i),ts=tasksFor(k),d2=parseKey(k);pc.append(el("button",{class:"wday"+(k===TODAY?" now":""),type:"button",onclick:()=>{cur=k;show("today")}},el("b",{},`${WDF[d2.getUTCDay()]}, ${fmtDate(k)}`),(ts.length||evOn(k).length)?el("span",{class:"wlist"},evOn(k).map(e=>el("span",{},`${EVK[e.kind].e} ${evName(e,k)}`)),ts.slice(0,8).map(x=>el("span",{class:x.d?"done":""},(x.tm?x.tm+"  ":"")+x.t+(x.rec?" 🔁":"")))):el("span",{class:"muted",style:"font-size:.85rem"},"свободный день")))}
   pc.append(el("button",{class:"btn ghost",type:"button",onclick:()=>{cur=TODAY;ui.dict=true;show("today")}},"🎤 Надиктовать дела"));app.append(pc);
+  const evc=el("div",{class:"card"},el("div",{class:"hrow"},el("h2",{},"Важные даты"),el("button",{class:"chip small",type:"button","aria-pressed":ui.evAdd?"true":"false",onclick:()=>{ui.evAdd=!ui.evAdd;render()}},"＋ добавить")));
+  if(ui.evAdd)evc.append(evForm());
+  const up=(S.ev||[]).map(e=>{const on=e.kind==="trip"&&e.end&&e.date<=TODAY&&TODAY<=e.end;return {e,n:on?TODAY:evNext(e,TODAY),on}}).filter(x=>x.on||x.n>=TODAY).sort((a,b)=>a.n<b.n?-1:1);
+  if(!up.length&&!ui.evAdd)evc.append(el("p",{class:"empty"},"Дни рождения близких, праздники, путешествия — напомню заранее."));
+  up.forEach(({e,n,on})=>{const dn=diffDays(n,TODAY);const when=on?`сейчас, до ${fmtDate(e.end)}`:dn===0?"сегодня":dn===1?"завтра":`${fmtDate(n)} · через ${dn} ${plural(dn,"день","дня","дней")}`;
+    evc.append(el("div",{class:"op"},el("span",{class:"em","aria-hidden":"true"},EVK[e.kind].e),el("span",{class:"txt"},evName(e,n),el("small",{},when+(e.kind==="trip"&&!on&&e.end&&e.end!==e.date?` — ${fmtDate(e.end)}`:"")+(e.yearly?" · каждый год":""))),
+      !on&&dn<=(e.remind??2)?el("span",{class:"status soon"},"скоро"):null,
+      el("button",{class:"x",type:"button","aria-label":"Удалить "+e.t,onclick:ev=>{const b=ev.currentTarget;if(b.dataset.sure)setEv(S.ev.filter(x=>x.id!==e.id));else{b.dataset.sure="1";b.textContent="удалить?";setTimeout(()=>{b.dataset.sure="";b.textContent="×"},2500)}}},"×")))});
+  app.append(evc);
   const act=(S.rec||[]).filter(r=>!r.until||r.until>=TODAY);
   if(act.length){const rc=el("div",{class:"card"},el("h2",{},"Повторяющиеся дела"));act.slice().sort((a,b)=>(a.tm||"99")<(b.tm||"99")?-1:1).forEach(r=>rc.append(el("div",{class:"op"},el("span",{class:"em","aria-hidden":"true"},"🔁"),el("span",{class:"txt"},r.t,el("small",{},repLabel(r)+(r.tm?` · ${r.tm}`:""))),
     el("button",{class:"x",type:"button","aria-label":"Прекратить повтор "+r.t,onclick:ev=>{const b=ev.currentTarget;if(b.dataset.sure)endRec(r.id,TODAY);else{b.dataset.sure="1";b.textContent="удалить?";setTimeout(()=>{b.dataset.sure="";b.textContent="×"},2500)}}},"×"))));app.append(rc)}
@@ -840,8 +885,8 @@ function renderMoney(app){const f=fin();const ym=money.ym||ymOf(TODAY);const [y,
     else if(spent)row.append(el("span",{class:"hint"},`${Math.round(v/spent*100)}% всех расходов`));cat.append(row)});
   app.append(cat);
   // operations
-  if(agg.ops&&agg.ops.length){const oc=el("div",{class:"card"},el("h2",{},"Операции"));agg.ops.slice(0,30).forEach(op=>{const c=op.t==="e"?catOf(op.c):[null,"💸","Доход"];
-    oc.append(el("div",{class:"op"},el("span",{class:"em","aria-hidden":"true"},c[1]),el("span",{class:"txt"},op.n||c[2],el("small",{},`${fmtDate(op.k)} · ${c[2]}`)),el("span",{class:"sum"+(op.t==="i"?" plus":"")},(op.t==="i"?"+":"−")+rub(op.a)),isCur?el("button",{class:"x",type:"button","aria-label":"Удалить операцию",onclick:()=>delOp(op)},"×"):null))});app.append(oc)}
+  if(agg.ops&&agg.ops.length){const oc=el("div",{class:"card"},el("h2",{},"Операции"));agg.ops.slice(0,ui.opsAll?200:3).forEach(op=>{const c=op.t==="e"?catOf(op.c):[null,"💸","Доход"];
+    oc.append(el("div",{class:"op"},el("span",{class:"em","aria-hidden":"true"},c[1]),el("span",{class:"txt"},op.n||c[2],el("small",{},`${fmtDate(op.k)} · ${c[2]}`)),el("span",{class:"sum"+(op.t==="i"?" plus":"")},(op.t==="i"?"+":"−")+rub(op.a)),isCur?el("button",{class:"x",type:"button","aria-label":"Удалить операцию",onclick:()=>delOp(op)},"×"):null))});if(agg.ops.length>3)oc.append(el("button",{class:"btn ghost",type:"button",onclick:()=>{ui.opsAll=!ui.opsAll;render()}},ui.opsAll?"Свернуть":`Показать все (${agg.ops.length})`));app.append(oc)}
   // savings goals
   const gc=el("div",{class:"card"},el("h2",{},"Копилки"));
   if(!f.goals.length)gc.append(el("p",{class:"empty"},"Например: «Отпуск у моря — 80 000 ₽» или «Подушка безопасности»."));
@@ -874,18 +919,17 @@ function careStatus(){const c=cfg(),care=S.care;const e=(S.weight.entries||[]).s
   const ph=c.cycleOn?phaseOf(S.cycle,TODAY):null;const procs=(care.procs||[]).map(p=>[p,procStatus(p)]);const due=procs.filter(([,s])=>s.cls==="due").map(([p])=>p.t);
   const appt=procs.filter(([p])=>p.appt&&p.appt>=TODAY).sort((a,b)=>a[0].appt<b[0].appt?-1:1)[0];
   const nv=(care.visits||[]).map(v=>v.next&&v.next>=TODAY?[v,v.next]:v.date>TODAY?[v,v.date]:null).filter(Boolean).sort((a,b)=>a[1]<b[1]?-1:1)[0];
-  const ill=(care.ill||[]).find(x=>!x.to);const ow=(S.style.week||{})[parseKey(TODAY).getUTCDay()];
-  return [["weight","⚖️","Вес",now!=null?`${fmtN(now)} кг${c.target?` · цель ${fmtN(c.target)}`:""}`:"записать вес"],
+  const ill=(care.ill||[]).find(x=>!x.to);const tb=wkBuild(TODAY);
+  return [["training","🏋️‍♀️","Тренировки",`сегодня: ${tb.v?tb.v.t.toLowerCase():"отдых"}`],["weight","⚖️","Вес",now!=null?`${fmtN(now)} кг${c.target?` · цель ${fmtN(c.target)}`:""}`:"записать вес"],
    ["cycle","🌸","Цикл",!c.cycleOn?"выключен":ph?`${ph.day} день · ${ph.key.toLowerCase()}`:"укажи дату"],
    ["beauty","💅","Красота",appt?`запись: ${appt[0].t}, ${dLabel(appt[0].appt)}`:due.length?`пора: ${due.slice(0,2).join(", ")}`:procs.length?`${procs.length} ${plural(procs.length,"процедура","процедуры","процедур")}`:"процедуры и записи"],
    ["doctors","🩺","Врачи",nv?`${nv[0].doc} · ${dLabel(nv[1])}`:(care.visits||[]).length?"история визитов":"визиты и назначения"],
-   ["health","🤍","Здоровье",ill?`болею: ${ill.t}`:"дневник самочувствия"],
-   ["style","👗","Образы",ow?`сегодня: ${ow}`:"образы на неделю"]]}
+   ["health","🤍","Здоровье",ill?`болею: ${ill.t}`:"дневник самочувствия"]]}
 function renderBody(app){const v=ui.care;
   if(!v){app.append(el("div",{class:"hero"},el("div",{},el("div",{class:"date"},"тело, красота, здоровье"),el("h1",{},"Уход за собой"))));const g=el("div",{class:"tiles"});
     careStatus().forEach(([id,e,t,s])=>g.append(el("button",{class:"tile",type:"button",onclick:()=>{ui.care=id;haptic("light");render();window.scrollTo(0,0);const sc=document.querySelector(".scroller");if(sc)sc.scrollTop=0}},el("span",{class:"e","aria-hidden":"true"},e),el("b",{},t),el("span",{},s))));app.append(g);return}
   const meta=careStatus().find(x=>x[0]===v)||["","","",""];app.append(el("div",{class:"subhead"},el("button",{class:"chip small",type:"button",onclick:()=>{ui.care=null;render()}},"← Уход за собой"),el("h1",{},`${meta[1]} ${meta[2]}`)));
-  ({weight:careWeight,cycle:careCycle,beauty:careBeauty,doctors:careDoctors,health:careHealth,style:careStyle})[v](app)}
+  ({weight:careWeight,cycle:careCycle,beauty:careBeauty,doctors:careDoctors,health:careHealth,training:careTraining})[v](app)}
 function careWeight(app){const c=cfg();
   const e=(S.weight.entries||[]).slice().sort((a,b)=>a[0]<b[0]?-1:1);const start=c.start??(e[0]&&e[0][1]),goal=c.target;const now=e.length?e[e.length-1][1]:start;
   const wc=el("div",{class:"card"},el("h2",{},goal?`Путь к ${fmtN(goal)} кг`:"Мой вес"));
@@ -951,6 +995,22 @@ function careHealth(app){const care=S.care;
   hc.append(el("details",{},el("summary",{},"+ новая запись"),el("div",{style:"display:flex;flex-direction:column;gap:8px;margin-top:10px"},it,el("label",{class:"field"},"С какого числа",ifr),inote,
     el("button",{class:"btn",type:"button",onclick:()=>{const t=it.value.trim();if(t)setCare(Object.assign({},care,{ill:(care.ill||[]).concat({t,from:ifr.value||TODAY,to:null,n:inote.value.trim()})}))}},"Сохранить"))),
     el("p",{class:"muted",style:"margin:0;font-size:.8rem"},"Дневник помогает рассказать врачу историю, но не ставит диагнозов. При тревожных симптомах обращайся к врачу."));app.append(hc);}
+function setSettings(p){S.settings=Object.assign({},S.settings,p);store.set("settings",S.settings);render()}
+function careTraining(app){const c=cfg();const plan=Object.assign({},wkPlan(c));const ph=c.cycleOn?phaseOf(S.cycle,TODAY):null;
+  const cc=el("div",{class:"card"},el("h2",{},"Тренировки по циклу"));
+  if(!ph)cc.append(el("p",{class:"muted",style:"margin:0"},c.cycleOn?"Укажи дату начала последних месячных — и тренировки начнут подстраиваться под фазу.":"Включи учёт цикла — тренировки будут подстраиваться под фазу."),el("button",{class:"btn ghost",type:"button",onclick:()=>{if(!c.cycleOn){S.settings=Object.assign({},S.settings,{cycleOn:true});store.set("settings",S.settings)}ui.care="cycle";render()}},c.cycleOn?"Указать дату":"Включить цикл"));
+  else cc.append(el("div",{class:"note"},el("b",{},`Сейчас ${ph.day} день цикла, ${ph.key.toLowerCase()} фаза: `),PHASE_WK[ph.key]));
+  cc.append(el("ul",{class:"phl"},Object.entries(PHASE_WK).map(([k,t])=>el("li",{},el("b",{},k+": "),t))));app.append(cc);
+  const pc=el("div",{class:"card"},el("h2",{},"Мой план на неделю"),el("span",{class:"muted",style:"font-size:.85rem"},"Что делаешь в каждый день — меняется сразу"));const pl=el("div",{class:"plan"});
+  [1,2,3,4,5,6,0].forEach(dw=>{const row=el("div",{class:"prow"},el("span",{class:"pd"},WD[dw]));Object.keys(WT).forEach(t=>row.append(el("button",{class:"pchip",type:"button","aria-pressed":plan[dw]===t?"true":"false","aria-label":`${WDF[dw]}: ${WT[t].l}`,onclick:()=>{haptic();setSettings({plan:Object.assign({},plan,{[dw]:t})})}},el("span",{"aria-hidden":"true"},WT[t].e),el("small",{},WT[t].s))));pl.append(row)});
+  const mins=el("div",{class:"chips"});[20,30,40,60].forEach(m=>mins.append(el("button",{class:"chip small",type:"button","aria-pressed":c.minutes===m?"true":"false",onclick:()=>setSettings({minutes:m})},`${m} мин`)));
+  const cmins=el("div",{class:"chips"});[15,20,30,45].forEach(m=>cmins.append(el("button",{class:"chip small",type:"button","aria-pressed":(c.cardioMin||30)===m?"true":"false",onclick:()=>setSettings({cardioMin:m})},`${m} мин`)));
+  const inv=el("div",{class:"chips"});INVENTORY.forEach(x=>inv.append(el("button",{class:"chip small",type:"button","aria-pressed":(c.inventory||[]).includes(x)?"true":"false",onclick:()=>{const cur0=c.inventory||[];setSettings({inventory:x==="Ничего нет"?["Ничего нет"]:(cur0.includes(x)?cur0.filter(y=>y!==x):cur0.filter(y=>y!=="Ничего нет").concat(x))})}},x)));
+  pc.append(pl,el("span",{class:"muted",style:"font-size:.85rem"},"Силовая:"),mins,el("span",{class:"muted",style:"font-size:.85rem"},"Кардио:"),cmins,el("span",{class:"muted",style:"font-size:.85rem"},"Что есть дома:"),inv);app.append(pc);
+  const nc=el("div",{class:"card"},el("h2",{},"Ближайшие 7 дней"));
+  for(let i=0;i<7;i++){const k=shift(TODAY,i),b=wkBuild(k),p2=c.cycleOn?phaseOf(S.cycle,k):null;
+    nc.append(el("button",{class:"wday",type:"button",onclick:()=>{cur=k;show("today")}},el("b",{},`${dLabel(k)} · ${WT[b.type].e} ${b.v?b.v.t:"отдых"}`),el("span",{class:"muted",style:"font-size:.82rem"},[p2?`${p2.day} день · ${p2.key.toLowerCase()}`:"",b.auto?"мягче из-за месячных":b.note].filter(Boolean).join(" · ")||"по плану")))}
+  app.append(nc)}
 function careStyle(app){const stc=el("div",{class:"card"},el("h2",{},"Образы на неделю"));const stl=S.style;stc.append(el("span",{class:"muted",style:"font-size:.85rem"},"Сегодняшний образ появится на главной"));
   [1,2,3,4,5,6,0].forEach(dw=>{const i=el("input",{value:(stl.week||{})[dw]||"",placeholder:"Например: бежевый свитер + джинсы + лоферы",autocomplete:"off"});i.addEventListener("input",()=>{setStyle(Object.assign({},S.style,{week:Object.assign({},S.style.week||{},{[dw]:i.value.trim()})}),false)});stc.append(el("label",{class:"field"},WDF[dw],i))});
   app.append(stc)}
@@ -967,13 +1027,13 @@ function renderMe(app){const c=cfg();app.append(el("div",{class:"hero"},el("div"
     el("p",{class:"muted",style:"margin:0"},`Силовая ${c.minutes} мин · кардио ${c.cardioMin||30} мин · растяжка 15 мин`),
     (()=>{const bi=bdayInfo(c,TODAY);return el("p",{class:"muted",style:"margin:0"},bi?(bi.isToday?"🎂 Сегодня твой день рождения!":`🎂 День рождения ${bi.date} — через ${bi.days} дн.`):"🎂 День рождения не указан")})(),
     el("button",{class:"btn ghost",type:"button",onclick:()=>{ob={step:1,data:Object.assign({},DEF,S.settings)};renderOb()}},"Изменить настройки")));
-  app.append(el("p",{class:"muted",style:"font-size:.8rem;text-align:center;margin:8px 0 0"},(inTG?"Твои данные хранятся в твоём аккаунте Telegram и видны только тебе.":"Превью: данные хранятся только в этом браузере.")+" · версия 8"))}
+  app.append(el("p",{class:"muted",style:"font-size:.8rem;text-align:center;margin:8px 0 0"},(inTG?"Твои данные хранятся в твоём аккаунте Telegram и видны только тебе.":"Превью: данные хранятся только в этом браузере.")+" · версия 9"))}
 
 /* ================= boot ================= */
 async function boot(){render();
   const keys=await store.keys();const base=await store.getMany(["settings","weight","cycle","ch"].concat(keys.filter(k=>k.startsWith("fm_"))).filter(k=>keys.includes(k)));
   const parse=v=>{try{return v?JSON.parse(v):null}catch(e){return null}};
-  S.settings=parse(base.settings);S.weight=parse(base.weight)||{entries:[]};S.cycle=parse(base.cycle);S.ch=parse(base.ch);S.vb=Object.assign({text:"",aff:[],goals:[]},(await getBig(keys,"vb"))||{});S.fin=await getBig(keys,"fin");S.care=Object.assign({procs:[],visits:[],ill:[]},(await getBig(keys,"care"))||{});S.books=(await getBig(keys,"books"))||[];S.rec=(await getBig(keys,"rec"))||[];S.myw=(await getBig(keys,"myw"))||{};S.style=Object.assign({week:{},items:[]},(await getBig(keys,"style"))||{});for(const k of keys.filter(k=>k.startsWith("fm_"))){const v=parse(base[k]);if(v)S.fm[k.slice(3).replace("_","-")]=v}
+  S.settings=parse(base.settings);S.weight=parse(base.weight)||{entries:[]};S.cycle=parse(base.cycle);S.ch=parse(base.ch);S.vb=Object.assign({text:"",aff:[],goals:[]},(await getBig(keys,"vb"))||{});S.fin=await getBig(keys,"fin");S.care=Object.assign({procs:[],visits:[],ill:[]},(await getBig(keys,"care"))||{});S.books=(await getBig(keys,"books"))||[];S.rec=(await getBig(keys,"rec"))||[];S.myw=(await getBig(keys,"myw"))||{};S.ev=(await getBig(keys,"ev"))||[];S.style=Object.assign({week:{},items:[]},(await getBig(keys,"style"))||{});for(const k of keys.filter(k=>k.startsWith("fm_"))){const v=parse(base[k]);if(v)S.fm[k.slice(3).replace("_","-")]=v}
   const oldImgs=keys.filter(k=>k.startsWith("img_"));if(oldImgs.length||S.vb.imgs){store.remove(oldImgs);delete S.vb.imgs;setBig("vb",S.vb)}
   const dayKeys=keys.filter(k=>k.startsWith("d_"));const keep=dayKeys.filter(k=>diffDays(TODAY,k.slice(2))<=45),old=dayKeys.filter(k=>!keep.includes(k));
   if(old.length)store.remove(old);
