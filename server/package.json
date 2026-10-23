@@ -1,0 +1,9 @@
+{
+  "name": "lifebyme-bot",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.js",
+  "dependencies": {
+    "ydb-sdk": "^5.3.0"
+  }
+}
