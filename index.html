@@ -348,6 +348,19 @@ body.preview .tgbar{display:flex;align-items:center;justify-content:space-betwee
 .wkrun{display:flex;flex-direction:column;gap:8px;background:var(--rose-soft);border-radius:16px;padding:12px}
 .wkrun .btn{width:100%}
 .wkrun .opts{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:.85rem;color:var(--ink)}
+
+/* badges & club */
+.badges{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.bdg{border:1.5px solid var(--line);border-radius:14px;padding:10px 6px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:4px;background:var(--paper);color:var(--ink);min-width:0}
+.bdg .e{font-size:1.8rem;line-height:1;filter:grayscale(1);opacity:.4}
+.bdg.on{border-color:var(--rose);background:var(--rose-soft)}.bdg.on .e{filter:none;opacity:1}
+.bdg b{font-size:.8rem;line-height:1.2;font-weight:700}.bdg small{font-size:.7rem;color:var(--muted)}
+.bdg .pb{width:80%;height:4px;background:var(--line);border-radius:2px;overflow:hidden}.bdg .pb i{display:block;height:100%;background:var(--rose)}
+.clubch{background:var(--rose-soft);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:8px;color:var(--ink)}
+.clubch .eyebrow{font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;color:var(--rose);font-weight:700}
+.clubboard{background:var(--paper);border:1px dashed var(--rose);border-radius:12px;padding:10px 12px;font-size:.9rem;display:flex;flex-direction:column;gap:6px}
+.clubboard .who{display:flex;flex-wrap:wrap;gap:4px}.clubboard .who span{background:var(--rose);color:var(--on-accent);border-radius:999px;padding:1px 9px;font-size:.78rem}
+.item .mv{border:0;background:none;color:var(--muted);padding:2px 6px;font-size:.8rem;white-space:nowrap}
 /* ===== themes: 8 «Лоскуты», 9 «Бежевый люкс», 11 «Нашивки» — always light ===== */
 body[data-skin="beige"],body[data-skin="badge"]{color-scheme:light}
 .themes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
@@ -460,7 +473,7 @@ const store={
   remove(keys){if(!keys.length)return Promise.resolve();if(useCloud)return new Promise(r=>tg.CloudStorage.removeItems(keys,()=>r()));for(const k of keys){try{localStorage.removeItem("lbm:"+k)}catch(e){}}return Promise.resolve()}
 };
 const timers={};
-function save(key,val,delay){clearTimeout(timers[key]);timers[key]=setTimeout(()=>store.set(key,val),delay??400)}
+function save(key,val,delay){if(key.startsWith("d_")&&typeof histUpd==="function"&&S.hist)histUpd(key.slice(2),val);clearTimeout(timers[key]);timers[key]=setTimeout(()=>store.set(key,val),delay??400)}
 /* big values (longer than one Telegram cell) are split into parts: name__0..name__k + name__n */
 const bigCount={};const legacy=new Set();
 function setBig(name,val,delay){clearTimeout(timers["big_"+name]);timers["big_"+name]=setTimeout(async()=>{const str=JSON.stringify(val);const parts=[];for(let i=0;i<str.length;i+=3800)parts.push(str.slice(i,i+3800));if(!parts.length)parts.push("null");
@@ -849,7 +862,7 @@ function setStyle(st,rerender=true){S.style=st;setBig("style",st,600);if(rerende
 /* ================= state ================= */
 const TODAY=keyOf(new Date());
 let cur=TODAY,tab="today";
-let S={settings:null,days:{},weight:{entries:[]},cycle:null,ch:null,chs:[],vb:{text:"",aff:[],goals:[]},fin:null,fm:{},care:{procs:[],visits:[],ill:[]},books:[],style:{week:{},items:[]},rec:[],myw:{},ev:[]};
+let S={hist:null,bdg:{},club:[],clubStat:{},settings:null,days:{},weight:{entries:[]},cycle:null,ch:null,chs:[],vb:{text:"",aff:[],goals:[]},fin:null,fm:{},care:{procs:[],visits:[],ill:[]},books:[],style:{week:{},items:[]},rec:[],myw:{},ev:[]};
 const DEF={name:"",goals:[],target:null,start:null,habits:["Чтение 30 минут","Прогулка 30 минут"],water:8,strength:[1,3,5],stretch:true,plan:null,minutes:40,cardioMin:30,inventory:["Коврик"],cycleOn:false,skin:"patch"};
 const ui={dict:false,dictText:"",dictItems:null,askDel:null,wkEdit:false,care:null,proc:null,newCat:false,amt:"",note:"",budgetOpen:false,swap:0,catEdit:false,catDraft:null,opsAll:false,evAdd:false,evKind:"bday"};
 function cfg(){return Object.assign({},DEF,S.settings||{})}
@@ -912,16 +925,57 @@ function render(){if(!loaded){$("app").replaceChildren(el("div",{class:"brand"},
   document.body.dataset.skin=curSkin();$("tabbar").hidden=false;if(inTG&&tg.BackButton){try{(tab==="body"&&ui.care)?tg.BackButton.show():tg.BackButton.hide()}catch(e){}}const app=$("app");app.replaceChildren(el("div",{class:"brand"},el("span",{class:"logo"},"Life by me"),el("span",{class:"club"},"club")));
   ({today:renderToday,week:renderWeek,dream:renderDream,money:renderMoney,body:renderBody,me:renderMe})[tab](app)}
 
+/* ---------- history, badges, club ---------- */
+const CLUB_API="";/* адрес сервера клуба: когда появится, общая графа заработает */
+function dayMask(d){if(!d)return 0;let m=0;const hab=cfg().habits||[];
+  const any=(d.done||[]).length||(d.tasks||[]).some(t=>t.d)||(d.rd||[]).length||(d.water||0)>0||wkDone(d)||d.zr||(d.focus&&d.focus.d)||(d.gr||[]).some(Boolean)||d.win||(d.exp||[]).length||(d.sl&&(d.sl.b||d.sl.q));
+  if(any)m|=1;if(wkDone(d)||d.wmin)m|=2;if((d.water||0)>=(cfg().water||8))m|=4;if(d.zr)m|=8;if((d.gr||[]).some(Boolean)||d.win)m|=16;if((d.exp||[]).length)m|=32;if(hab.length&&hab.every(h=>(d.done||[]).includes(h)))m|=64;return m}
+function histUpd(k,d){S.hist=S.hist||{};const m=dayMask(d);if((S.hist[k]||0)===m)return;if(m)S.hist[k]=m;else delete S.hist[k];clearTimeout(histUpd.t);histUpd.t=setTimeout(()=>setBig("hist",S.hist),700);setTimeout(checkBadges,50)}
+function histCnt(bit){return Object.values(S.hist||{}).filter(m=>m&bit).length}
+function histRun(){const ks=Object.keys(S.hist||{}).filter(k=>S.hist[k]&1).sort();let best=0,run=0,prev=null;ks.forEach(k=>{run=prev&&diffDays(k,prev)===1?run+1:1;best=Math.max(best,run);prev=k});return best}
+function chFinished(){return (S.chs||[]).filter(c=>diffDays(TODAY,c.start)+1>c.len&&Object.values(c.marks||{}).filter(v=>v===1).length>=Math.ceil(c.len*.8)).length}
+const BADGES=[
+ ["first","🌱","Первый шаг","первая отметка в приложении",1,()=>histCnt(1)],
+ ["week","🔥","Неделя в ритме","7 дней подряд с отметками",7,histRun],
+ ["wk10","💪","Первые 10 тренировок","10 тренировок",10,()=>histCnt(2)],
+ ["zr10","☀️","Ранняя пташка","10 зарядок",10,()=>histCnt(8)],
+ ["water","💧","Водяная фея","норма воды 20 дней",20,()=>histCnt(4)],
+ ["month","🌸","Месяц со мной","30 дней с отметками",30,()=>histCnt(1)],
+ ["ch","🏆","Челленджер","завершить челлендж на 80% и больше",1,chFinished],
+ ["grat","🙏","Благодарное сердце","30 вечеров благодарности",30,()=>histCnt(16)],
+ ["money","💸","Деньги под контролем","записывать расходы 30 дней",30,()=>histCnt(32)],
+ ["habit","✨","Привычка-королева","30 дней, когда все привычки отмечены",30,()=>histCnt(64)],
+ ["wk40","🦋","Сила 40","40 тренировок",40,()=>histCnt(2)],
+ ["d90","👑","90 дней Life by me","90 дней с отметками — три месяца!",90,()=>histCnt(1)]];
+function checkBadges(silent){S.bdg=S.bdg||{};const fresh=[];BADGES.forEach(([id,e,n,,goal,fn])=>{if(!S.bdg[id]&&fn()>=goal){S.bdg[id]=TODAY;fresh.push([e,n])}});
+  if(fresh.length){setBig("bdg",S.bdg);if(!silent){haptic("success");toast(fresh.length===1?`Новый значок: ${fresh[0][0]} ${fresh[0][1]}!`:`Новые значки: ${fresh.map(x=>x[0]).join(" ")}`)}}}
+function badgesCard(){const got=BADGES.filter(b=>(S.bdg||{})[b[0]]).length;const g=el("div",{class:"badges"});
+  BADGES.forEach(([id,e,n,desc,goal,fn])=>{const on=!!(S.bdg||{})[id],v=Math.min(goal,fn());g.append(el("button",{class:"bdg"+(on?" on":""),type:"button","aria-label":`${n}: ${desc}`,onclick:()=>toast(on?`${e} ${n} — получен ${fmtDate(S.bdg[id])}`:`${n}: ${desc}. Сейчас ${v} из ${goal}`)},
+    el("span",{class:"e","aria-hidden":"true"},e),el("b",{},n),on?el("small",{},"получен ✓"):el("span",{class:"pb"},el("i",{style:`width:${Math.round(v/goal*100)}%`})),on?null:el("small",{},`${v} из ${goal}`)))});
+  return el("div",{class:"card"},el("div",{class:"hrow"},el("h2",{},"Мои значки"),el("span",{class:"tag"},`${got} из ${BADGES.length}`)),el("p",{class:"muted",style:"margin:0;font-size:.88rem"},"Собери все за три месяца в клубе. Нажми на значок — расскажу, как его получить."),g)}
+async function clubLoad(){try{const r=await fetch("club.json?t="+Date.now(),{cache:"no-store"});if(r.ok){const j=await r.json();S.club=(j.challenges||[]).filter(c=>c&&c.id&&c.start&&c.len);render();clubStats()}}catch(e){}}
+async function clubApi(path,body){if(!CLUB_API)return null;try{const r=await fetch(CLUB_API+path,body?{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(Object.assign({initData:inTG?tg.initData:""},body))}:{});return r.ok?await r.json():null}catch(e){return null}}
+async function clubStats(){if(!CLUB_API)return;S.clubStat=S.clubStat||{};for(const c of S.club||[]){const st=await clubApi(`/stats?ch=${encodeURIComponent(c.id)}&day=${TODAY}`);if(st)S.clubStat[c.id]=st}render()}
+function clubBlock(c,mine){const day1=diffDays(TODAY,c.start)+1;const b=el("div",{class:"clubch"},el("span",{class:"eyebrow"},"челлендж клуба"),el("b",{style:"font-size:1.1rem"},`${c.emoji||"🌸"} ${c.title}`));
+  if(c.desc)b.append(el("span",{style:"font-size:.92rem"},c.desc));
+  b.append(el("span",{class:"muted",style:"font-size:.88rem"},day1<1?`Старт ${fmtDate(c.start)} · ${c.len} ${plural(c.len,"день","дня","дней")}`:day1<=c.len?`Идёт: день ${day1} из ${c.len}`:`Завершён ${fmtDate(shift(c.start,c.len-1))}`));
+  if(!mine&&day1<=c.len)b.append(el("button",{class:"btn",type:"button",onclick:()=>{setChs((S.chs||[]).concat({id:"club_"+c.id,club:c.id,title:c.title,len:c.len,start:c.start,marks:{}}));clubApi("/join",{ch:c.id});haptic("success");toast("Ты в челлендже клуба! 🌸")}},"Подключиться"));
+  if(mine){const st=(S.clubStat||{})[c.id];const bd=el("div",{class:"clubboard"},el("b",{},"Общая графа клуба"));
+    if(st){bd.append(el("span",{},`Участниц: ${st.members||0} · сегодня отметились ${st.today||0}`));if((st.names||[]).length)bd.append(el("div",{class:"who"},st.names.slice(0,30).map(n=>el("span",{},n))))}
+    else bd.append(el("span",{class:"muted"},"Ты в общем зачёте. Здесь будет видно, сколько девочек отметились сегодня."));b.append(bd)}
+  return b}
 function setChs(l){S.chs=l;setBig("chs",l);render()}
 function chCard(){const chs=S.chs||[];const chc=el("div",{class:"card"},el("div",{class:"hrow"},el("h2",{},chs.length>1?"Мои челленджи":"Челлендж"),chs.length?el("span",{class:"tag"},`${chs.filter(c=>diffDays(TODAY,c.start)+1<=c.len).length} активн.`):null));
+  (S.club||[]).forEach(c=>{const mine=chs.some(x=>x.club===c.id);if(!mine&&diffDays(TODAY,c.start)+1>c.len)return;if(!mine)chc.append(clubBlock(c,false))});
   if(!chs.length)chc.append(el("p",{class:"muted",style:"margin:0"},"Выбери один или несколько вызовов и отмечай каждый день."));
   chs.forEach(ch=>{const b=el("div",{class:"chblock"});const cd=diffDays(cur,ch.start)+1,m=ch.marks[cur],yes=Object.values(ch.marks).filter(v=>v===1).length;
-    b.append(el("div",{class:"hrow"},el("b",{style:"font-size:1.05rem"},ch.title),el("span",{class:"tag"},`${yes} из ${ch.len}`)));
-    const mark=v=>{const marks=Object.assign({},ch.marks);if(marks[cur]===v)delete marks[cur];else marks[cur]=v;setChs(chs.map(x=>x.id===ch.id?Object.assign({},x,{marks}):x));haptic(v===1?"success":"light")};
+    b.append(el("div",{class:"hrow"},el("b",{style:"font-size:1.05rem"},ch.club?"🌸 "+ch.title:ch.title),el("span",{class:"tag"},ch.club?`клуб · ${yes} из ${ch.len}`:`${yes} из ${ch.len}`)));
+    const mark=v=>{const marks=Object.assign({},ch.marks);if(marks[cur]===v)delete marks[cur];else marks[cur]=v;setChs(chs.map(x=>x.id===ch.id?Object.assign({},x,{marks}):x));haptic(v===1?"success":"light");if(ch.club)clubApi("/mark",{ch:ch.club,day:cur,v:marks[cur]??null}).then(()=>clubStats())};
     if(cd>=1&&cd<=ch.len){b.append(el("div",{class:"scale"},el("button",{class:"chip small",type:"button","aria-pressed":m===1?"true":"false",onclick:()=>mark(1)},"получилось 🌸"),el("button",{class:"chip small",type:"button","aria-pressed":m===0?"true":"false",onclick:()=>mark(0)},"сегодня нет")));
       if(m===0)b.append(el("p",{class:"muted",style:"margin:0;font-size:.88rem"},"Один день ничего не ломает. Завтра продолжаем."))}
     else if(cd>ch.len)b.append(el("p",{style:"margin:0"},`Завершён: ${yes} из ${ch.len} 🌸`));
     else b.append(el("p",{class:"muted",style:"margin:0"},`Начнётся ${fmtDate(ch.start)}`));
+    if(ch.club){const c=(S.club||[]).find(x=>x.id===ch.club);if(c)b.append(clubBlock(c,true).querySelector(".clubboard"))}
     const g=el("div",{class:"chgrid"});for(let i=0;i<ch.len;i++){const k=shift(ch.start,i),v=ch.marks[k];g.append(el("div",{class:"chday"+(v===1?" yes":v===0?" no":"")+(k===TODAY?" today":"")},i+1))}b.append(g);
     b.append(el("button",{type:"button",style:"align-self:flex-end;font-size:.85rem;border:0;background:none;color:var(--muted);text-decoration:underline;padding:2px","aria-label":"Выйти из челленджа "+ch.title,onclick:ev=>{const bt=ev.currentTarget;if(bt.dataset.sure)setChs(chs.filter(x=>x.id!==ch.id));else{bt.dataset.sure="1";bt.textContent="точно убрать?";setTimeout(()=>{bt.dataset.sure="";bt.textContent=cd>ch.len?"убрать":"выйти из челленджа"},2500)}}},cd>ch.len?"убрать":"выйти из челленджа"));
     chc.append(b)});
@@ -975,7 +1029,9 @@ function renderToday(app){const c=cfg(),d=day(cur),off=diffDays(cur,TODAY),p=pct
   evs.forEach(e=>tl.append(el("li",{class:"item evi"},el("span",{class:"evemo","aria-hidden":"true"},EVK[e.kind].e),el("span",{class:"txt"},evName(e,cur),el("span",{class:"meta"},e.kind==="trip"?`путешествие до ${fmtDate(e.end)}`:"важная дата")))));
   tasks.forEach(x=>{const toggle=()=>{const n=Object.assign({},d);if(x.rec){const rd=n.rd||[];n.rd=x.d?rd.filter(id=>id!==x.rec.id):rd.concat(x.rec.id)}else n.tasks=(d.tasks||[]).map((y,j)=>j===x.i?Object.assign({},y,{d:!y.d}):y);haptic(x.d?"light":"medium");setDay(cur,n);if(!x.d&&pct(cur)>=1){haptic("success");toast("Всё сделано! 🌸")}};
     const del=()=>{if(x.rec){ui.askDel=x.rec.id;render()}else setDay(cur,Object.assign({},d,{tasks:(d.tasks||[]).filter((_,j)=>j!==x.i)}))};
-    tl.append(el("li",{class:"item"+(x.d?" done":"")},checkBtn(x.d,x.t,toggle),x.tm?el("span",{class:"tm"},x.tm):null,el("span",{class:"txt"},x.t,x.rec?el("span",{class:"meta"},"🔁 "+repLabel(x.rec)):null),el("button",{class:"x",type:"button","aria-label":"Удалить "+x.t,onclick:del},"×")));
+    const mv=()=>{const nk=shift(cur,1),nd=day(nk);S.days[nk]=Object.assign({},nd,{tasks:(nd.tasks||[]).concat({t:x.t,d:false,tm:x.tm||""})});save("d_"+nk,S.days[nk]);haptic("light");
+      if(x.rec){const r=(S.rec||[]).find(y=>y.id===x.rec.id);toast("Перенесла на завтра ➡️");skipRec(x.rec.id,cur)}else{setDay(cur,Object.assign({},d,{tasks:(d.tasks||[]).filter((_,j)=>j!==x.i)}));toast("Перенесла на завтра ➡️")}};
+    tl.append(el("li",{class:"item"+(x.d?" done":"")},checkBtn(x.d,x.t,toggle),x.tm?el("span",{class:"tm"},x.tm):null,el("span",{class:"txt"},x.t,x.rec?el("span",{class:"meta"},"🔁 "+repLabel(x.rec)):null),x.d?null:el("button",{class:"mv",type:"button","aria-label":"Перенести на завтра: "+x.t,title:"Перенести на завтра",onclick:mv},"→ завтра"),el("button",{class:"x",type:"button","aria-label":"Удалить "+x.t,onclick:del},"×")));
     if(x.rec&&ui.askDel===x.rec.id)tl.append(el("li",{class:"ask"},el("span",{},"Убрать:"),el("button",{class:"mini",type:"button",onclick:()=>{ui.askDel=null;skipRec(x.rec.id,cur)}},"только этот день"),el("button",{class:"mini",type:"button",onclick:()=>{ui.askDel=null;endRec(x.rec.id,cur)}},"все следующие"),el("button",{class:"mini",type:"button",onclick:()=>{ui.askDel=null;render()}},"отмена")))});
   if(!tasks.length&&!evs.length)tl.append(el("li",{class:"empty"},"На этот день дел нет. Добавь сама или надиктуй 🎤"));
   const ti=el("input",{id:"tIn",placeholder:"Новое дело…",autocomplete:"off"}),tt=el("input",{id:"tTm",type:"time","aria-label":"Время (по желанию)"});
@@ -1312,11 +1368,12 @@ function themePicker(){const cur=curSkin();return el("div",{class:"card"},el("h2
   return el("button",{class:"theme",type:"button","aria-pressed":id===cur?"true":"false",onclick:()=>{haptic("light");setSettings({skin:id});applyTgTheme()}},
     el("span",{class:"pv",style:pvStyle},el("span",{style:tagStyle},"Привет")),el("b",{},name),el("small",{},mood))})))}
 function renderMe(app){const c=cfg();app.append(el("div",{class:"hero"},el("div",{},el("div",{class:"date"},"мой путь"),el("h1",{},c.name?`Это я, ${c.name}`:"Это я"))));
-  const days=Object.keys(S.days).length,str=Object.values(S.days).filter(wkDone).length;
+  const days=histCnt(1),str=histCnt(2);
   app.append(el("div",{class:"card"},el("h2",{},"Мой путь в клубе"),el("div",{class:"grid3"},
     el("div",{},el("b",{style:"font-family:var(--display);font-size:1.6rem;display:block"},days),el("span",{class:"muted",style:"font-size:.8rem"},"дней с отметками")),
     el("div",{},el("b",{style:"font-family:var(--display);font-size:1.6rem;display:block"},str),el("span",{class:"muted",style:"font-size:.8rem"},"тренировок")),
     el("div",{},el("b",{style:"font-family:var(--display);font-size:1.6rem;display:block"},Math.max(0,...c.habits.map(streak))),el("span",{class:"muted",style:"font-size:.8rem"},"лучшая серия")))));
+  app.append(badgesCard());
   app.append(themePicker());
   const plan=wkPlan(c);
   app.append(el("div",{class:"card"},el("h2",{},"Мои настройки"),el("p",{class:"muted",style:"margin:0"},`Цели: ${c.goals.join(", ")||"—"}`),el("p",{class:"muted",style:"margin:0"},`Привычки: ${c.habits.join(", ")}`),
@@ -1324,7 +1381,7 @@ function renderMe(app){const c=cfg();app.append(el("div",{class:"hero"},el("div"
     el("p",{class:"muted",style:"margin:0"},`Силовая ${c.minutes} мин · кардио ${c.cardioMin||30} мин · растяжка 15 мин`),
     (()=>{const bi=bdayInfo(c,TODAY);return el("p",{class:"muted",style:"margin:0"},bi?(bi.isToday?"🎂 Сегодня твой день рождения!":`🎂 День рождения ${bi.date} — через ${bi.days} дн.`):"🎂 День рождения не указан")})(),
     el("button",{class:"btn ghost",type:"button",onclick:()=>{ob={step:1,data:Object.assign({},DEF,S.settings)};renderOb()}},"Изменить настройки")));
-  app.append(el("p",{class:"muted",style:"font-size:.8rem;text-align:center;margin:8px 0 0"},(inTG?"Твои данные хранятся в твоём аккаунте Telegram и видны только тебе.":"Превью: данные хранятся только в этом браузере.")+" · версия 13"))}
+  app.append(el("p",{class:"muted",style:"font-size:.8rem;text-align:center;margin:8px 0 0"},(inTG?"Твои данные хранятся в твоём аккаунте Telegram и видны только тебе.":"Превью: данные хранятся только в этом браузере.")+" · версия 14"))}
 
 /* ================= boot ================= */
 async function boot(){render();
@@ -1335,6 +1392,7 @@ async function boot(){render();
   const dayKeys=keys.filter(k=>k.startsWith("d_"));const keep=dayKeys.filter(k=>diffDays(TODAY,k.slice(2))<=45),old=dayKeys.filter(k=>!keep.includes(k));
   if(old.length)store.remove(old);
   for(let i=0;i<keep.length;i+=20){const part=await store.getMany(keep.slice(i,i+20));for(const [k,v] of Object.entries(part)){const d=parse(v);if(d)S.days[k.slice(2)]=d}}
+  S.hist=(await getBig(keys,"hist"))||{};S.bdg=(await getBig(keys,"bdg"))||{};let hch=false;for(const [k,d] of Object.entries(S.days)){const m=dayMask(d);if(m&&(S.hist[k]||0)!==m){S.hist[k]=m;hch=true}}if(hch)setBig("hist",S.hist);checkBadges(true);clubLoad();
   document.body.dataset.skin=curSkin();applyTgTheme();ob={step:0,data:null};loaded=true;render()}
 boot();
 </script>
