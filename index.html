@@ -7,7 +7,7 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Infant:ital,wght@0,500;0,600;1,500&family=Marck+Script&family=Nunito:wght@400;600;700&family=Playfair+Display:ital,wght@0,500;0,600;1,500&family=Bad+Script&family=Lora:ital,wght@0,500;0,600;1,500&family=Caveat:wght@500;600&family=Comfortaa:wght@500;700&family=Pacifico&family=Kurale&family=Philosopher:ital,wght@0,400;0,700;1,400&family=Montserrat+Alternates:wght@500;600&family=Manrope:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Infant:ital,wght@0,500;0,600;1,500&family=Marck+Script&family=Nunito:wght@400;600;700&family=Playfair+Display:ital,wght@0,500;0,600;1,500&family=Bad+Script&family=Lora:ital,wght@0,500;0,600;1,500&family=Caveat:wght@500;600&family=Comfortaa:wght@500;700&family=Pacifico&family=Kurale&family=Philosopher:ital,wght@0,400;0,700;1,400&family=Montserrat+Alternates:wght@500;600&family=Manrope:wght@400;600;700&family=Neucha&family=Rubik+Mono+One&family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&display=swap">
 <style>
 /* Layout: phone-first Telegram Mini App — onboarding wizard, then four tabs with a bottom bar; skins swap the accent family */
 :root{
@@ -310,6 +310,69 @@ body.preview .tgbar{display:flex;align-items:center;justify-content:space-betwee
   body.preview .tabbar,body.preview .toast{position:absolute}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ===== themes: 8 «Лоскуты», 9 «Бежевый люкс», 11 «Нашивки» — always light ===== */
+body[data-skin="patch"],body[data-skin="beige"],body[data-skin="badge"]{color-scheme:light}
+.themes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.theme{border:2px solid var(--line);border-radius:18px;padding:8px;background:var(--paper);display:flex;flex-direction:column;gap:8px;text-align:left;min-width:0}
+.theme[aria-pressed="true"]{border-color:var(--rose);box-shadow:0 0 0 2px var(--rose)}
+.theme .pv{height:74px;border-radius:12px;position:relative;overflow:hidden;display:flex;align-items:flex-end;padding:8px}
+.theme .pv span{border-radius:8px;padding:3px 8px;font-size:.78rem;font-weight:700}
+.theme b{font-size:.92rem;line-height:1.2;padding:0 4px}
+.theme small{color:var(--muted);font-size:.74rem;padding:0 4px 2px}
+
+/* 8 · Лоскуты */
+body[data-skin="patch"]{--bg:#FFFFFF;--paper:#FFFFFF;--ink:#2B2340;--muted:#6C6380;--line:#F2C9D4;--rose:#D8344A;--rose-soft:#FBDDE4;--sage:#3F5E96;--sage-soft:#DDE7F5;--butter:#F07A4E;--sky:#3F5E96;--sky-soft:#DDE7F5;--on-accent:#FFFFFF;
+  --display:"Playfair Display",Georgia,serif;--script:"Neucha","Comic Sans MS",cursive;--body:"Neucha","Comic Sans MS",cursive;--shadow:none;font-size:17px;background-image:none}
+body[data-skin="patch"] h1,body[data-skin="patch"] h2{font-style:italic;font-weight:600}
+body[data-skin="patch"] .brand .logo{font-family:"Playfair Display",serif;font-style:italic;font-weight:600;font-size:1.6rem}
+body[data-skin="patch"] .hero{background:#3F5E96;color:#FFFFFF;padding:22px 18px 20px;clip-path:polygon(0 6%,8% 0,22% 4%,38% 0,55% 5%,72% 1%,88% 5%,100% 0,98% 30%,100% 62%,97% 100%,80% 95%,62% 100%,45% 96%,28% 100%,12% 95%,0 100%,2% 60%,0 30%);
+  background-image:radial-gradient(circle at 20% 30%,rgba(255,255,255,.18) 0 4px,transparent 5px),radial-gradient(circle at 70% 70%,rgba(255,255,255,.18) 0 4px,transparent 5px),repeating-linear-gradient(45deg,rgba(255,255,255,.06) 0 2px,transparent 2px 6px);background-size:46px 46px,46px 46px,auto}
+body[data-skin="patch"] .hero .date,body[data-skin="patch"] .hero .sub,body[data-skin="patch"] .hero .muted{color:#F6C7D3}
+body[data-skin="patch"] .hero .pill{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.3);color:#FFFFFF}
+body[data-skin="patch"] .card{border-radius:6px;border:2px dashed var(--rose)}
+body[data-skin="patch"] .app>.card:nth-child(3n+2){border:0;background:#FBDDE4;background-image:radial-gradient(circle,#F3B3C3 2.5px,transparent 3px);background-size:16px 16px}
+body[data-skin="patch"] .app>.card:nth-child(3n){border:0;background:#E4ECF7;background-image:repeating-linear-gradient(0deg,rgba(63,94,150,.10) 0 1px,transparent 1px 8px),repeating-linear-gradient(90deg,rgba(63,94,150,.10) 0 1px,transparent 1px 8px)}
+body[data-skin="patch"] .btn,body[data-skin="patch"] input,body[data-skin="patch"] textarea{border-radius:6px}
+body[data-skin="patch"] .tabbar{background:#FBDDE4;border-top:2px dashed var(--rose)}
+body[data-skin="patch"] .tabbar button{font-size:.78rem}
+body[data-skin="patch"] .tabbar button[aria-selected="true"]{background:var(--rose);color:#FFFFFF;border-radius:6px}
+
+body[data-skin="patch"] .hero button,body[data-skin="badge"] .hero button{color:var(--ink)}
+/* 9 · Бежевый люкс */
+body[data-skin="beige"]{--bg:#EDE6DD;--paper:#F7F2EC;--ink:#3B332D;--muted:#857567;--line:#DDD0C3;--rose:#A86A7C;--rose-soft:#F3DDE3;--sage:#857567;--sage-soft:#E6DCD1;--butter:#E9B3C2;--sky:#D79AAE;--sky-soft:#EFE1E3;--on-accent:#FFFFFF;
+  --display:"Cormorant Garamond",Georgia,serif;--script:"Cormorant Garamond",Georgia,serif;--body:"Manrope",system-ui,sans-serif;--shadow:0 12px 28px -16px rgba(110,90,70,.35);
+  background-image:radial-gradient(ellipse at 80% 0%,rgba(255,255,255,.7),transparent 45%),linear-gradient(115deg,transparent 40%,rgba(190,175,160,.18) 45%,transparent 52%,transparent 70%,rgba(190,175,160,.12) 74%,transparent 80%)}
+body[data-skin="beige"] .brand .logo{font-style:normal;font-weight:600;font-size:1.25rem;letter-spacing:.22em;text-transform:uppercase;color:var(--ink)}
+body[data-skin="beige"] .hero .date{font-style:italic;font-size:1.25rem}
+body[data-skin="beige"] h1{font-style:italic;font-weight:500}
+body[data-skin="beige"] .card{border:0;border-radius:26px;background-color:var(--paper);background-image:radial-gradient(circle at 30% 40%,rgba(220,205,190,.45) 1.5px,transparent 2.5px),radial-gradient(circle at 70% 60%,rgba(220,205,190,.45) 1.5px,transparent 2.5px);background-size:7px 7px,9px 9px}
+body[data-skin="beige"] .bloom{filter:drop-shadow(0 0 14px rgba(242,150,175,.65))}
+body[data-skin="beige"] .btn{background:#3B332D;color:#F7F2EC;border-radius:999px}
+body[data-skin="beige"] .btn.ghost{background:transparent;color:var(--ink);border-color:#BFAE9F}
+body[data-skin="beige"] .chip{border-color:#BFAE9F;background:transparent}
+body[data-skin="beige"] .chip[aria-pressed="true"]{background:#3B332D;border-color:#3B332D;color:#F7F2EC}
+body[data-skin="beige"] .tabbar button[aria-selected="true"]{color:var(--ink);background:#E6DCD1}
+
+/* 11 · Нашивки */
+body[data-skin="badge"]{--bg:#4C6EA8;--paper:#FFFFFF;--ink:#2B2340;--muted:#6C6380;--line:#E3DDEA;--rose:#D9567D;--rose-soft:#FDE3EB;--sage:#4A9A46;--sage-soft:#E2F3E0;--butter:#FFE27A;--sky:#4C6EA8;--sky-soft:#DCE6F6;--on-accent:#FFFFFF;
+  --display:"Rubik Mono One",system-ui,sans-serif;--script:"Neucha","Comic Sans MS",cursive;--body:"Neucha","Comic Sans MS",cursive;--shadow:none;font-size:17px;
+  background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.05) 0 2px,transparent 2px 5px),repeating-linear-gradient(-45deg,rgba(0,0,40,.06) 0 2px,transparent 2px 5px)}
+body[data-skin="badge"] h1{font-size:1.6rem;line-height:1.15;font-weight:400;text-transform:uppercase}
+body[data-skin="badge"] h2{font-size:1.02rem;font-weight:400;text-transform:uppercase;color:var(--rose)}
+body[data-skin="badge"] h3{font-weight:400}
+body[data-skin="badge"] .brand .logo{font-family:"Rubik Mono One",sans-serif;font-size:.85rem;color:#FFE27A;border:2px dashed #FFE27A;border-radius:6px;padding:5px 9px}
+body[data-skin="badge"] .brand .club{color:#E8EEFA}
+body[data-skin="badge"] .hero,body[data-skin="badge"] .app>p{color:#FFFFFF}
+body[data-skin="badge"] .hero .date,body[data-skin="badge"] .hero .sub,body[data-skin="badge"] .hero .muted,body[data-skin="badge"] .app>p.muted{color:#FFE27A}
+body[data-skin="badge"] .hero .pill{background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.35);color:#FFFFFF}
+body[data-skin="badge"] .card{border:0;border-radius:20px;box-shadow:0 0 0 4px #F49BB4,0 6px 0 4px rgba(0,0,40,.25);outline:2px dashed #F49BB4;outline-offset:-9px;margin:4px}
+body[data-skin="badge"] .app>.card:nth-child(3n+2){box-shadow:0 0 0 4px #E5B935,0 6px 0 4px rgba(0,0,40,.25);outline-color:#E5B935}
+body[data-skin="badge"] .app>.card:nth-child(3n){box-shadow:0 0 0 4px #8FD18B,0 6px 0 4px rgba(0,0,40,.25);outline-color:#8FD18B}
+body[data-skin="badge"] .btn{border-radius:999px;outline:1.5px dashed rgba(255,255,255,.8);outline-offset:-5px}
+body[data-skin="badge"] .tabbar{background:#3A578A;border-top:2px dashed #FFE27A}
+body[data-skin="badge"] .tabbar button{color:#E8EEFA;font-size:.78rem}
+body[data-skin="badge"] .tabbar button[aria-selected="true"]{background:#FFE27A;color:#2B2340}
 </style>
 </head>
 <body>
@@ -639,7 +702,7 @@ function renderOb(){
     wrap.append(dots,el("span",{class:"step"},"шаг 6"),el("h1",{},"Учитывать цикл?"),el("p",{class:"muted"},"Тогда тренировки и советы будут подстраиваться под фазу: в одни дни мягче, в другие — сильнее."),st,extra,
       el("p",{class:"consent"},"Эти данные хранятся только в твоём аккаунте Telegram и видны только тебе. Советы приложения — общие рекомендации, а не медицинская помощь."),el("div",{class:"grow"}),next("Готово ✨"),back)}
   app.append(wrap);window.scrollTo(0,0)}
-function finishOb(){const d=Object.assign({},ob.data);d.skin="garden";d.name=(d.name||"").trim();if(d.cycleOn&&d._cs){S.cycle={start:d._cs,len:d._cl||28,per:5};store.set("cycle",S.cycle)}delete d._cs;delete d._cl;d.onboarded=true;
+function finishOb(){const d=Object.assign({},ob.data);d.skin=THEMES.some(t=>t[0]===d.skin)?d.skin:"garden";d.name=(d.name||"").trim();if(d.cycleOn&&d._cs){S.cycle={start:d._cs,len:d._cl||28,per:5};store.set("cycle",S.cycle)}delete d._cs;delete d._cl;d.onboarded=true;
   if(d.start&&!S.weight.entries.length){S.weight={entries:[[TODAY,d.start]]};store.set("weight",S.weight)}
   S.settings=d;store.set("settings",d);if(inTG&&tg.BackButton)try{tg.BackButton.hide()}catch(e){}haptic("success");show("today");toast(`Добро пожаловать в клуб${d.name?", "+d.name:""}! 🌸`)}
 if(inTG&&tg.BackButton)tg.BackButton.onClick(()=>{if($("tabbar").hidden){if(ob.step>0){ob.step--;renderOb()}}else if(ui.care){ui.care=null;render()}});
@@ -650,7 +713,7 @@ document.querySelectorAll("#tabbar [data-go]").forEach(b=>b.onclick=()=>{haptic(
 let loaded=false;
 function render(){if(!loaded){$("app").replaceChildren(el("div",{class:"brand"},el("span",{class:"logo"},"Life by me"),el("span",{class:"club"},"club")),el("p",{class:"muted"},"Загружаю твой мир…"));return}
   if(!S.settings||!S.settings.onboarded){if(!ob.data)startOnboarding();return}
-  document.body.dataset.skin="garden";$("tabbar").hidden=false;if(inTG&&tg.BackButton){try{(tab==="body"&&ui.care)?tg.BackButton.show():tg.BackButton.hide()}catch(e){}}const app=$("app");app.replaceChildren(el("div",{class:"brand"},el("span",{class:"logo"},"Life by me"),el("span",{class:"club"},"club")));
+  document.body.dataset.skin=curSkin();$("tabbar").hidden=false;if(inTG&&tg.BackButton){try{(tab==="body"&&ui.care)?tg.BackButton.show():tg.BackButton.hide()}catch(e){}}const app=$("app");app.replaceChildren(el("div",{class:"brand"},el("span",{class:"logo"},"Life by me"),el("span",{class:"club"},"club")));
   ({today:renderToday,week:renderWeek,dream:renderDream,money:renderMoney,body:renderBody,me:renderMe})[tab](app)}
 
 function renderToday(app){const c=cfg(),d=day(cur),off=diffDays(cur,TODAY),p=pct(cur),dd=parseKey(cur);
@@ -1015,19 +1078,31 @@ function careStyle(app){const stc=el("div",{class:"card"},el("h2",{},"Образ
   [1,2,3,4,5,6,0].forEach(dw=>{const i=el("input",{value:(stl.week||{})[dw]||"",placeholder:"Например: бежевый свитер + джинсы + лоферы",autocomplete:"off"});i.addEventListener("input",()=>{setStyle(Object.assign({},S.style,{week:Object.assign({},S.style.week||{},{[dw]:i.value.trim()})}),false)});stc.append(el("label",{class:"field"},WDF[dw],i))});
   app.append(stc)}
 
+const THEMES=[
+ ["garden","Цветочный сад","нежная классика","#fbf1ef","#d27389","#fffaf8"],
+ ["patch","Лоскуты","ткани, горошек, джинса","#FFFFFF","#3F5E96","#FBDDE4"],
+ ["beige","Бежевый люкс","сдержанно и дорого","#EDE6DD","#3B332D","#F7F2EC"],
+ ["badge","Нашивки","джинса и вышивка","#4C6EA8","#FFE27A","#FFFFFF"]];
+function curSkin(){const k=(S.settings&&S.settings.skin)||"garden";return THEMES.some(t=>t[0]===k)?k:"garden"}
+function themePicker(){const cur=curSkin();return el("div",{class:"card"},el("h2",{},"Оформление"),el("div",{class:"themes"},THEMES.map(([id,name,mood,bg,acc,card])=>{
+  const pvStyle=id==="patch"?`background:${bg};background-image:radial-gradient(circle,#F3B3C3 2.5px,transparent 3px);background-size:14px 14px;border:2px dashed #D8344A`:id==="badge"?`background:${bg};background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.08) 0 2px,transparent 2px 5px)`:id==="beige"?`background:${bg};background-image:linear-gradient(115deg,transparent 40%,rgba(190,175,160,.3) 46%,transparent 54%)`:`background:${bg};background-image:radial-gradient(circle at 12% 0%,#f7dde3 0,transparent 60%)`;
+  const tagStyle=id==="patch"?`background:${acc};color:#fff;font-family:'Playfair Display',serif;font-style:italic`:id==="badge"?`background:${card};color:#2B2340;outline:1.5px dashed #F49BB4;outline-offset:-4px;font-family:'Neucha',cursive`:id==="beige"?`background:${card};color:${acc};font-family:'Cormorant Garamond',serif;font-style:italic;font-size:.95rem`:`background:${card};color:${acc};font-family:'Marck Script',cursive;font-size:.95rem`;
+  return el("button",{class:"theme",type:"button","aria-pressed":id===cur?"true":"false",onclick:()=>{haptic("light");setSettings({skin:id});applyTgTheme()}},
+    el("span",{class:"pv",style:pvStyle},el("span",{style:tagStyle},"Привет, "+(cfg().name||"Яна"))),el("b",{},name),el("small",{},mood))})))}
 function renderMe(app){const c=cfg();app.append(el("div",{class:"hero"},el("div",{},el("div",{class:"date"},"мой путь"),el("h1",{},c.name?`Это я, ${c.name}`:"Это я"))));
   const days=Object.keys(S.days).length,str=Object.values(S.days).filter(wkDone).length;
   app.append(el("div",{class:"card"},el("h2",{},"Мой путь в клубе"),el("div",{class:"grid3"},
     el("div",{},el("b",{style:"font-family:var(--display);font-size:1.6rem;display:block"},days),el("span",{class:"muted",style:"font-size:.8rem"},"дней с отметками")),
     el("div",{},el("b",{style:"font-family:var(--display);font-size:1.6rem;display:block"},str),el("span",{class:"muted",style:"font-size:.8rem"},"тренировок")),
     el("div",{},el("b",{style:"font-family:var(--display);font-size:1.6rem;display:block"},Math.max(0,...c.habits.map(streak))),el("span",{class:"muted",style:"font-size:.8rem"},"лучшая серия")))));
+  app.append(themePicker());
   const plan=wkPlan(c);
   app.append(el("div",{class:"card"},el("h2",{},"Мои настройки"),el("p",{class:"muted",style:"margin:0"},`Цели: ${c.goals.join(", ")||"—"}`),el("p",{class:"muted",style:"margin:0"},`Привычки: ${c.habits.join(", ")}`),
     el("p",{class:"muted",style:"margin:0"},"Тренировки: "+[1,2,3,4,5,6,0].map(dw=>`${WD[dw]} ${WT[plan[dw]||"rest"].e}`).join(" · ")),
     el("p",{class:"muted",style:"margin:0"},`Силовая ${c.minutes} мин · кардио ${c.cardioMin||30} мин · растяжка 15 мин`),
     (()=>{const bi=bdayInfo(c,TODAY);return el("p",{class:"muted",style:"margin:0"},bi?(bi.isToday?"🎂 Сегодня твой день рождения!":`🎂 День рождения ${bi.date} — через ${bi.days} дн.`):"🎂 День рождения не указан")})(),
     el("button",{class:"btn ghost",type:"button",onclick:()=>{ob={step:1,data:Object.assign({},DEF,S.settings)};renderOb()}},"Изменить настройки")));
-  app.append(el("p",{class:"muted",style:"font-size:.8rem;text-align:center;margin:8px 0 0"},(inTG?"Твои данные хранятся в твоём аккаунте Telegram и видны только тебе.":"Превью: данные хранятся только в этом браузере.")+" · версия 9"))}
+  app.append(el("p",{class:"muted",style:"font-size:.8rem;text-align:center;margin:8px 0 0"},(inTG?"Твои данные хранятся в твоём аккаунте Telegram и видны только тебе.":"Превью: данные хранятся только в этом браузере.")+" · версия 10"))}
 
 /* ================= boot ================= */
 async function boot(){render();
@@ -1038,7 +1113,7 @@ async function boot(){render();
   const dayKeys=keys.filter(k=>k.startsWith("d_"));const keep=dayKeys.filter(k=>diffDays(TODAY,k.slice(2))<=45),old=dayKeys.filter(k=>!keep.includes(k));
   if(old.length)store.remove(old);
   for(let i=0;i<keep.length;i+=20){const part=await store.getMany(keep.slice(i,i+20));for(const [k,v] of Object.entries(part)){const d=parse(v);if(d)S.days[k.slice(2)]=d}}
-  document.body.dataset.skin="garden";applyTgTheme();ob={step:0,data:null};loaded=true;render()}
+  document.body.dataset.skin=curSkin();applyTgTheme();ob={step:0,data:null};loaded=true;render()}
 boot();
 </script>
 </body>
