@@ -3,6 +3,7 @@
 const crypto = require("crypto");
 const T = require("./texts");
 const { memoryDb, ydbDb, s3Db, setS3Token } = require("./db");
+const { parseAll } = require("./dict");
 
 const env = k => process.env[k] || "";
 const TOKEN = () => env("BOT_TOKEN");
@@ -243,6 +244,49 @@ async function adminCmd(text, chat, u) {
   }
   return null;
 }
+// ---------- надиктовка в бот: голос или текст с «+» → дела, повторы, траты ----------
+const CAT_L = { food: "🍽 Еда", beauty: "💄 Красота", clothes: "👗 Одежда", rent: "🔑 Жильё", home: "🏠 Дом", transport: "🚕 Транспорт", fun: "🎉 Развлечения", health: "💊 Здоровье", gifts: "🎁 Подарки", study: "📚 Обучение", other: "✨ Другое" };
+const REP_L = { daily: "каждый день", weekdays: "по будням", weekly: "каждую неделю", monthly: "каждый месяц" };
+const WDS = ["вс", "пн", "вт", "ср", "чт", "пт", "сб"];
+const REM_T = { 15: "за 15 минут", 60: "за час", 1440: "за день" };
+async function stt(fileId) {
+  const f = await tg("getFile", { file_id: fileId }); if (!f.ok) throw new Error("getFile");
+  const audio = Buffer.from(await (await fetch(`${TG_BASE()}/file/bot${TOKEN()}/${f.result.file_path}`)).arrayBuffer());
+  const r = await fetch("https://stt.api.cloud.yandex.net/speech/v1/stt:recognize?lang=ru-RU&format=oggopus", { method: "POST", headers: { Authorization: "Bearer " + IAM }, body: audio });
+  const j = await r.json(); if (!r.ok) throw new Error(JSON.stringify(j).slice(0, 200));
+  return (j.result || "").trim();
+}
+function dictPreview(p) {
+  const lines = [];
+  p.tasks.forEach(x => lines.push(x.rep ? `🔁 ${esc(x.t)}${x.tm ? " · " + x.tm : ""} — ${x.rep === "weekly" && x.dows.length ? x.dows.map(d => WDS[d]).join(", ") : REP_L[x.rep] || ""}` : `📅 ${esc(x.t)} — ${x.date === mskDay() ? "сегодня" : x.date === addDays(mskDay(), 1) ? "завтра" : ruShort(x.date)}${x.tm ? " в " + x.tm : ""}${x.rem ? " · 🔔 " + REM_T[x.rem] : ""}`));
+  p.money.forEach(x => lines.push(`💸 ${x.amount.toLocaleString("ru-RU")} ₽ — ${CAT_L[x.cat]}${x.note ? " · " + esc(x.note) : ""}`));
+  return lines.join("\n");
+}
+async function dictStart(chat, u, text, heard) {
+  const p = parseAll(text, mskDay());
+  if (!p.tasks.length && !p.money.length) return tg("sendMessage", { chat_id: chat, parse_mode: "HTML", text: `${heard ? `🎤 Услышала: «${esc(text)}»\n\n` : ""}Не нашла здесь дел или трат. Скажи, например: «завтра в 6 парикмахер, напомни за час» или «потратила 500 на такси».` });
+  await db().kvPut(u.id, { _dict: JSON.stringify(p) });
+  return tg("sendMessage", { chat_id: chat, parse_mode: "HTML", text: `${heard ? `🎤 Услышала: «${esc(text)}»\n\n` : ""}Записать?\n\n${dictPreview(p)}`, reply_markup: { inline_keyboard: [[{ text: "✅ Записать", callback_data: "dadd" }, { text: "✖️ Не надо", callback_data: "dno" }]] } });
+}
+function bigGet(kv, name) { if (kv[name + "__n"]) { let s = ""; for (let i = 0; i < +kv[name + "__n"]; i++) s += kv[`${name}__${i}`] || ""; try { return JSON.parse(s); } catch (e) { return null; } } if (kv[name]) { try { return JSON.parse(kv[name]); } catch (e) { return null; } } return null; }
+function bigPut(kv, name, val, put, del) { const str = JSON.stringify(val); const parts = []; for (let i = 0; i < str.length; i += 3800) parts.push(str.slice(i, i + 3800)); if (!parts.length) parts.push("null");
+  parts.forEach((p, i) => put[`${name}__${i}`] = p); put[name + "__n"] = String(parts.length); const old = +kv[name + "__n"] || 0; for (let i = parts.length; i < old; i++) del.push(`${name}__${i}`); if (kv[name]) del.push(name); }
+async function dictApply(u) {
+  const kv = await db().kvAll(u.id); let p; try { p = JSON.parse(kv._dict || "null"); } catch (e) { p = null; } if (!p) return null;
+  const put = {}, del = ["_dict"], days = {}; const today = mskDay(); let nT = 0, nM = 0;
+  const dayOf = k => days[k] || (days[k] = (() => { try { return JSON.parse(kv["d_" + k] || "null"); } catch (e) { return null; } })() || { done: [], tasks: [], water: 0 });
+  const recs = p.tasks.filter(x => x.rep);
+  if (recs.length) { const rec = bigGet(kv, "rec") || []; recs.forEach(x => rec.push({ id: "v" + crypto.randomBytes(4).toString("hex"), t: x.t, tm: x.tm || "", rep: x.rep, dows: x.dows || [], dom: x.dom || null, from: x.from || today })); bigPut(kv, "rec", rec, put, del); nT += recs.length; }
+  for (const x of p.tasks.filter(x => !x.rep)) {
+    const d = dayOf(x.date || today); d.tasks = (d.tasks || []).concat(Object.assign({ t: x.t, d: false, tm: x.tm || "" }, x.rem ? { rem: x.rem } : {})); nT++;
+    if (x.tm && x.rem && db().remAdd) { const at = Date.parse(`${x.date || today}T${x.tm}:00+03:00`) - x.rem * 60000; if (at > Date.now()) await db().remAdd(u.id, { id: `b${(x.date || today).replace(/-/g, "")}${crypto.randomBytes(3).toString("hex")}`, at, text: `🔔 ${{ 15: "Через 15 минут", 60: "Через час", 1440: "Завтра" }[x.rem] || "Скоро"}: ${x.t} — в ${x.tm}` }); }
+  }
+  for (const x of p.money) { const d = dayOf(today); d.exp = (d.exp || []).concat([[x.amount, x.cat, x.note || ""]]); nM++; }
+  for (const [k, d] of Object.entries(days)) put["d_" + k] = JSON.stringify(d);
+  await db().kvPut(u.id, put, del);
+  return { nT, nM };
+}
+
 async function onMessage(m) {
   const chat = m.chat.id; if (m.chat.type !== "private") return;
   const text = (m.text || "").trim();
@@ -255,6 +299,13 @@ async function onMessage(m) {
   if (text === "/plans") return tg("sendMessage", { chat_id: chat, text: T.plans(freeLabel()), parse_mode: "HTML", reply_markup: kbPlans() });
   if (text === "/help") return tg("sendMessage", { chat_id: chat, text: T.faq(ADMIN_NICK()), parse_mode: "HTML", disable_web_page_preview: true, reply_markup: kbBack() });
   if (text === "/delete") return tg("sendMessage", { chat_id: chat, text: T.delAsk, reply_markup: { inline_keyboard: [[{ text: "🗑 Да, удалить всё", callback_data: "delyes" }], [{ text: "Нет, оставить", callback_data: "delno" }]] } });
+  if (m.voice || m.audio) {
+    const v = m.voice || m.audio; if ((v.duration || 0) > 60) return tg("sendMessage", { chat_id: chat, text: "🎤 Голосовое длиннее минуты — запиши, пожалуйста, покороче." });
+    let heard = ""; try { heard = await stt(v.file_id); } catch (e) { console.log("stt", e && e.message); return tg("sendMessage", { chat_id: chat, text: "🎤 Не получилось распознать. Попробуй ещё раз или напиши текстом, начав с «+»." }); }
+    if (!heard) return tg("sendMessage", { chat_id: chat, text: "🎤 Ничего не расслышала. Попробуй ещё раз, чуть ближе к телефону." });
+    return dictStart(chat, u, heard, true);
+  }
+  if (text.startsWith("+") && text.length > 2) return dictStart(chat, u, text.slice(1).trim(), false);
   if (text === "/remind") { const f = flags(u); f.delete("nocr"); setFlags(u, f); await db().putUser(u); return tg("sendMessage", { chat_id: chat, text: T.chOn }); }
   if (isAdmin) {
     if (flags(u).has("bc") && text && !text.startsWith("/") && !Object.values(AB).includes(text)) {
@@ -299,6 +350,8 @@ async function onCallback(cq) {
     return sendWelcome(chat);
   }
   if (!u.consent) return sendConsent(chat);
+  if (d === "dadd") { const r = await dictApply(u); await tg("editMessageReplyMarkup", { chat_id: chat, message_id: m.message_id, reply_markup: { inline_keyboard: [] } }); if (!r) return tg("sendMessage", { chat_id: chat, text: "Это уже записано или устарело. Надиктуй ещё раз 🎤" }); return tg("sendMessage", { chat_id: chat, text: `Записала ✓ ${[r.nT ? `дел: ${r.nT}` : "", r.nM ? `трат: ${r.nM}` : ""].filter(Boolean).join(", ")}`, reply_markup: { inline_keyboard: [[btnApp("Открыть приложение")]] } }); }
+  if (d === "dno") { await db().kvPut(u.id, {}, ["_dict"]); return tg("editMessageReplyMarkup", { chat_id: chat, message_id: m.message_id, reply_markup: { inline_keyboard: [] } }); }
   if (d === "delyes") { await db().deleteUser(u.id); await tg("editMessageReplyMarkup", { chat_id: chat, message_id: m.message_id, reply_markup: { inline_keyboard: [] } }); return tg("sendMessage", { chat_id: chat, text: T.delDone }); }
   if (d === "delno") return tg("editMessageText", { chat_id: chat, message_id: m.message_id, text: "Хорошо, ничего не удаляю 🖤" });
   if (d === "choff") { const f = flags(u); f.add("nocr"); setFlags(u, f); await db().putUser(u); return tg("sendMessage", { chat_id: chat, text: T.chOff }); }
@@ -349,8 +402,9 @@ async function api(action, body) {
   }
   if (action === "rem") {
     const now = Date.now();
-    const list = (Array.isArray(body.list) ? body.list : []).filter(r => r && /^[\w.-]{1,60}$/.test(r.id || "") && +r.at > now - 60e3 && +r.at < now + 40 * DAY && typeof r.text === "string").slice(0, 200)
-      .map(r => ({ id: r.id, at: Math.round(+r.at), text: r.text.slice(0, 300) }));
+    const isL = r => /^letter-/.test(r.id || "");
+    const list = (Array.isArray(body.list) ? body.list : []).filter(r => r && /^[\w.-]{1,60}$/.test(r.id || "") && +r.at > now - 60e3 && +r.at < now + (isL(r) ? 400 : 40) * DAY && typeof r.text === "string").slice(0, 200)
+      .map(r => ({ id: r.id, at: Math.round(+r.at), text: r.text.slice(0, isL(r) ? 3500 : 300) }));
     await db().remSet(u.id, list);
     return [200, { ok: true, n: list.length }];
   }
@@ -370,6 +424,7 @@ async function api(action, body) {
     }
     const st = await db().clubStats(ch, body.op === "stats" ? day : mskDay());
     st.board = st.board.map(b => ({ name: b.name, n: b.n, me: b.uid === u.id }));
+    st.feed = (st.feed || []).slice(0, 50).map(f => ({ name: f.name, at: f.at, me: f.uid === u.id }));
     return [200, st];
   }
   if (action === "delete") { await db().deleteUser(u.id); return [200, { ok: true }]; }
@@ -487,8 +542,10 @@ async function setup(selfUrl, fid) {
 // ---------- entry ----------
 const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "Content-Type", "Access-Control-Allow-Methods": "POST, GET, OPTIONS" };
 const reply = (code, obj) => ({ statusCode: code, headers: { "Content-Type": "application/json; charset=utf-8", ...CORS }, body: JSON.stringify(obj) });
+let IAM = "";
 module.exports.handler = async function (event, context) {
-  setS3Token(context && context.token && context.token.access_token);
+  IAM = (context && context.token && context.token.access_token) || IAM;
+  setS3Token(IAM);
   try {
     if (event && Array.isArray(event.messages) && event.messages[0] && !event.httpMethod) { const n = await reminders(); return { statusCode: 200, body: "reminders " + JSON.stringify(n) }; }
     const method = event.httpMethod || "GET";

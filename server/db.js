@@ -9,15 +9,17 @@ function memoryDb() {
     async listUsers() { return [...users.values()].map(u => ({ ...u })); },
     async clubJoin(ch, uid, name) { members.set(ch + "|" + uid, { ch, uid: +uid, name }); },
     async clubMembers(ch) { return [...members.values()].filter(m => m.ch === ch).map(m => ({ ...m })); },
-    async clubMark(ch, day, uid, v) { const k = ch + "|" + day + "|" + uid; if (v == null) marks.delete(k); else marks.set(k, { ch, day, uid: +uid, v }); },
+    async clubMark(ch, day, uid, v) { const k = ch + "|" + day + "|" + uid; if (v == null) marks.delete(k); else marks.set(k, { ch, day, uid: +uid, v, at: Date.now() }); },
     async clubDayMarks(ch, day) { return [...marks.values()].filter(m => m.ch === ch && m.day === day).map(m => ({ ...m })); },
     async clubStats(ch, day) {
       const ms = [...members.values()].filter(m => m.ch === ch);
       const today = [...marks.values()].filter(m => m.ch === ch && m.day === day && m.v === 1);
       const names = today.map(t => (ms.find(m => m.uid === t.uid) || {}).name || "").filter(Boolean);
       const board = ms.map(m => ({ uid: m.uid, name: m.name || "", n: [...marks.values()].filter(x => x.ch === ch && x.uid === m.uid && x.v === 1).length })).filter(b => b.name).sort((a, b) => b.n - a.n);
-      return { members: ms.length, today: today.length, names, board };
+      const feed = today.map(t => ({ uid: t.uid, name: (ms.find(m => m.uid === t.uid) || {}).name || "", at: t.at || 0 })).filter(f => f.name).sort((a, b) => b.at - a.at);
+      return { members: ms.length, today: today.length, names, board, feed };
     },
+    async remAdd(uid, r) { rems.set(uid + "|" + r.id, { uid: +uid, ...r }); },
     async kvAll(uid) { const o = {}; for (const [k, v] of kv) { const [u, key] = [k.slice(0, k.indexOf("|")), k.slice(k.indexOf("|") + 1)]; if (+u === +uid) o[key] = v; } return o; },
     async kvPut(uid, put, del) { for (const [k, v] of Object.entries(put || {})) kv.set(uid + "|" + k, v); for (const k of del || []) kv.delete(uid + "|" + k); },
     async remSet(uid, list) { for (const k of [...rems.keys()]) if (k.startsWith(uid + "|")) rems.delete(k); for (const r of list) rems.set(uid + "|" + r.id, { uid: +uid, ...r }); },
@@ -209,16 +211,18 @@ function s3Db(bucket) {
     async listUsers() { const ks = (await list("u/")).filter(k => k.endsWith(".json")); return (await pmap(ks, 16, get)).filter(Boolean); },
     async clubJoin(ch, uid, name) { const k = chk(ch) + uid + ".json"; const m = (await get(k)) || { uid: +uid, marks: {} }; m.name = name || m.name || ""; m.uid = +uid; await put(k, m); },
     async clubMembers(ch) { const ks = await list(chk(ch)); return (await pmap(ks, 16, get)).filter(Boolean).map(m => ({ ch, uid: +m.uid, name: m.name || "" })); },
-    async clubMark(ch, day, uid, v) { const k = chk(ch) + uid + ".json"; const m = (await get(k)) || { uid: +uid, name: "", marks: {} }; m.marks = m.marks || {}; if (v == null) delete m.marks[day]; else m.marks[day] = v; await put(k, m); },
+    async clubMark(ch, day, uid, v) { const k = chk(ch) + uid + ".json"; const m = (await get(k)) || { uid: +uid, name: "", marks: {} }; m.marks = m.marks || {}; m.times = m.times || {}; if (v == null) { delete m.marks[day]; delete m.times[day]; } else { m.marks[day] = v; if (v === 1) m.times[day] = Date.now(); } await put(k, m); },
     async clubDayMarks(ch, day) { const ks = await list(chk(ch)); return (await pmap(ks, 16, get)).filter(m => m && m.marks && m.marks[day] != null).map(m => ({ uid: +m.uid, v: m.marks[day] })); },
     async clubStats(ch, day) {
       const ms = (await pmap(await list(chk(ch)), 16, get)).filter(Boolean);
       const today = ms.filter(m => m.marks && m.marks[day] === 1);
       const board = ms.map(m => ({ uid: +m.uid, name: m.name || "", n: Object.values(m.marks || {}).filter(v => v === 1).length })).filter(b => b.name).sort((a, b) => b.n - a.n);
-      return { members: ms.length, today: today.length, names: today.map(m => m.name).filter(Boolean), board };
+      const feed = today.filter(m => m.name).map(m => ({ uid: +m.uid, name: m.name, at: (m.times || {})[day] || 0 })).sort((a, b) => b.at - a.at);
+      return { members: ms.length, today: today.length, names: today.map(m => m.name).filter(Boolean), board, feed };
     },
     async kvAll(uid) { return (await get(`kv/${+uid}.json`)) || {}; },
     async kvPut(uid, putObj, dels) { const k = `kv/${+uid}.json`; const o = (await get(k)) || {}; Object.assign(o, putObj || {}); for (const d of dels || []) delete o[d]; await put(k, o); },
+    async remAdd(uid, r) { const l = ((await get(`rem/${+uid}.json`)) || []).filter(x => x.id !== r.id).concat(r); await this.remSet(uid, l); },
     async remSet(uid, l) {
       const idx = (await get("rem/_index.json")) || {};
       if (l.length) { await put(`rem/${+uid}.json`, l); idx[uid] = Math.min(...l.map(r => r.at)); } else { await del(`rem/${+uid}.json`); delete idx[uid]; }
