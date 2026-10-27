@@ -23,7 +23,7 @@ const CLUB_CHAT = () => env("CLUB_CHAT_ID"); // закрытый канал кл
 const LOCAL_ONLY = /^(cycle|weight|care)(__|$)/; // данные о здоровье — никогда не храним на сервере
 
 let DB = null;
-const db = () => DB || (DB = env("BUCKET") ? s3Db(env("BUCKET")) : env("YDB_ENDPOINT") ? ydbDb() : memoryDb());
+const db = () => DB || (DB = env("USE_YDB") ? ydbDb() : s3Db(env("BUCKET") || "lifebyme-data")); // по умолчанию — бакет lifebyme-data в Object Storage
 const setDb = d => { DB = d; };
 
 // ---------- helpers ----------
