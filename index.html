@@ -1140,7 +1140,7 @@ function render(){if(!loaded){$("app").replaceChildren(el("div",{class:"brand"},
   ({today:renderToday,week:renderWeek,dream:renderDream,money:renderMoney,body:renderBody,me:renderMe})[tab](app)}
 
 /* ---------- history, badges, club ---------- */
-const API="";/* адрес функции Yandex Cloud — после подключения сервера */
+const API="https://functions.yandexcloud.net/d4emt5ttqi4gert20199";/* адрес функции Yandex Cloud — после подключения сервера */
 async function apiCall(a,body){if(!API||!inTG||!tg.initData)return null;try{const r=await fetch(API+"?a="+a,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(Object.assign({initData:tg.initData},body||{}))});return (r.ok||r.status===409)?await r.json():null}catch(e){return null}}
 async function accLoad(){const j=await apiCall("me");if(j&&typeof j.ok==="boolean"){S.acc=j;render()}}
 function openBot(payload){const b=S.acc&&S.acc.bot;if(!b){toast("Напиши в бот клуба 🌸");return}const u=`https://t.me/${b}?start=${payload||"plans"}`;try{tg.openTelegramLink(u)}catch(e){location.href=u}}
@@ -1654,7 +1654,7 @@ function renderMe(app){const c=cfg();app.append(el("div",{class:"hero"},el("div"
     el("p",{class:"muted",style:"margin:0"},`Силовая ${c.minutes} мин · кардио ${c.cardioMin||30} мин · растяжка 15 мин`),
     (()=>{const bi=bdayInfo(c,TODAY);return el("p",{class:"muted",style:"margin:0"},bi?(bi.isToday?"🎂 Сегодня твой день рождения!":`🎂 День рождения ${bi.date} — через ${bi.days} дн.`):"🎂 День рождения не указан")})(),
     el("button",{class:"btn ghost",type:"button",onclick:()=>{ob={step:1,data:Object.assign({},DEF,S.settings)};renderOb()}},"Изменить настройки")));
-  app.append(el("p",{class:"muted",style:"font-size:.8rem;text-align:center;margin:8px 0 0"},(SRV.on?"Данные хранятся на сервере клуба в России. Цикл, вес и самочувствие — только на этом телефоне.":inTG?"Данные сохраняются в твоём Telegram. Цикл, вес и самочувствие — только на этом телефоне.":"Превью: данные хранятся только в этом браузере.")+" · версия 20"))}
+  app.append(el("p",{class:"muted",style:"font-size:.8rem;text-align:center;margin:8px 0 0"},(SRV.on?"Данные хранятся на сервере клуба в России. Цикл, вес и самочувствие — только на этом телефоне.":inTG?"Данные сохраняются в твоём Telegram. Цикл, вес и самочувствие — только на этом телефоне.":"Превью: данные хранятся только в этом браузере.")+" · версия 21"))}
 
 /* ================= boot ================= */
 async function boot(){document.body.dataset.skin="kar";render();
