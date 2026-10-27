@@ -506,6 +506,11 @@ module.exports.handler = async function (event, context) {
       return reply(200, { url: self, telegram: tgOk ? "доступен ✅" : "недоступен ❌ — проверь TG_API (посредник)", ...out });
     }
     if (a === "remind" && qs.s && qs.s === env("WEBHOOK_SECRET")) return reply(200, { sent: await reminders() });
+    if (a === "diag" && qs.s && qs.s === env("WEBHOOK_SECRET")) { // проверка без токена: что видит Telegram и как отвечает база
+      const wh = await tg("getWebhookInfo", {}); const w = wh.result || {};
+      const t0 = Date.now(); let dbr; try { dbr = await db().health(); } catch (e) { dbr = "ошибка: " + (e && e.message); }
+      return reply(200, { webhook_url: w.url || "", pending: w.pending_update_count, last_error: w.last_error_message || "нет", last_error_date: w.last_error_date ? new Date(w.last_error_date * 1000).toISOString() : "", db: dbr, db_ms: Date.now() - t0, admin: ADMIN() || "не задан", secret_set: !!env("WEBHOOK_SECRET"), relay: env("TG_API") || "нет" });
+    }
     if (a === "health") return reply(200, { ok: true, db: await db().health(), token: !!TOKEN(), admin: ADMIN() || null, relay: !!env("TG_API"), freeUntil: FREE_UNTIL() });
     return reply(200, { ok: true, service: "Life By Me" });
   } catch (e) {
