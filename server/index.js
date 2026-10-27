@@ -19,6 +19,7 @@ const PROD_URL = () => (env("PRODAMUS_URL") || "").replace(/\/+$/, "");
 const PROD_KEY = () => env("PRODAMUS_KEY");
 const TESTERS = () => env("TESTERS").split(/[\s,;]+/).filter(Boolean).map(Number); // тестовый режим: пока список не пуст, клуб открыт только этим id и админу
 const isTester = id => !TESTERS().length || +id === ADMIN() || TESTERS().includes(+id);
+const CLUB_CHAT = () => env("CLUB_CHAT_ID"); // закрытый канал клуба: бот — админ канала, вход по заявке, бот одобряет только тех, у кого есть доступ
 const LOCAL_ONLY = /^(cycle|weight|care)(__|$)/; // данные о здоровье — никогда не храним на сервере
 
 let DB = null;
@@ -136,6 +137,7 @@ async function onProdamus(raw, headers, ctype) {
   u.paid = addDays(base, plan.days); rem.add(tag); setFlags(u, [...rem].filter(x => !x.startsWith("p")));
   await db().putUser(u);
   await tg("sendMessage", { chat_id: u.id, parse_mode: "HTML", text: T.paid(plan.t, ru(u.paid)), reply_markup: { inline_keyboard: [[btnApp()]] } });
+  if (CLUB_CHAT() && !(await isMember(u))) await sendClubInvite(u.id);
   if (ADMIN()) await tg("sendMessage", { chat_id: ADMIN(), parse_mode: "HTML", text: `💰 <b>Оплата!</b> ${esc(u.name)}${u.username ? " @" + esc(u.username) : ""}\nТариф: ${plan.t} — ${data.sum} ₽\nДоступ до ${ru(u.paid)}` });
   return [200, "success"];
 }
@@ -157,6 +159,44 @@ async function sendPay(chat, u) {
 }
 const kbPay = () => ({ inline_keyboard: [[{ text: "💳 Тарифы и оплата", callback_data: "plans" }], [btnApp("Открыть приложение")]] });
 const kbCh = () => ({ inline_keyboard: [[btnApp("☀️ Открыть и отметиться")], [{ text: "🔕 Не напоминать про челлендж", callback_data: "choff" }]] });
+
+// ---------- закрытый канал клуба ----------
+async function clubLink() {
+  if (!CLUB_CHAT()) return "";
+  const sys = await db().kvAll(0); if (sys.club_link && sys.club_chat === CLUB_CHAT()) return sys.club_link;
+  const r = await tg("createChatInviteLink", { chat_id: CLUB_CHAT(), name: "Life By Me — вход по заявке", creates_join_request: true });
+  if (!r.ok) return ""; await db().kvPut(0, { club_link: r.result.invite_link, club_chat: CLUB_CHAT() }); return r.result.invite_link;
+}
+async function isMember(u) {
+  if (!CLUB_CHAT() || +u.id === ADMIN()) return true;
+  if (u.mem && Date.now() - +u.mem < 6 * 3600e3) return true;
+  const r = await tg("getChatMember", { chat_id: CLUB_CHAT(), user_id: u.id });
+  const st = r.ok && r.result && r.result.status; const ok = st === "creator" || st === "administrator" || st === "member" || (st === "restricted" && r.result.is_member);
+  if (ok) { u.mem = String(Date.now()); await db().putUser(u); }
+  return ok;
+}
+async function sendClubInvite(chat) {
+  const link = await clubLink(); if (!link) return;
+  return tg("sendMessage", { chat_id: chat, parse_mode: "HTML", text: T.clubInvite, reply_markup: { inline_keyboard: [[{ text: "🖤 Вступить в закрытый клуб", url: link }]] } });
+}
+async function onJoin(j) {
+  if (String(j.chat.id) !== String(CLUB_CHAT())) return;
+  const uid = +j.from.id; const u = await db().getUser(uid); const a = access(u);
+  if (u && u.consent && a.ok && isTester(uid)) {
+    await tg("approveChatJoinRequest", { chat_id: j.chat.id, user_id: uid }); u.mem = String(Date.now()); const f = flags(u); f.delete("kick"); setFlags(u, f); await db().putUser(u);
+    return tg("sendMessage", { chat_id: uid, text: T.clubIn, reply_markup: { inline_keyboard: [[btnApp()]] } });
+  }
+  await tg("declineChatJoinRequest", { chat_id: j.chat.id, user_id: uid });
+  const bot = env("BOT_USERNAME");
+  return tg("sendMessage", { chat_id: uid, text: !u || !u.consent ? T.clubNeedStart : T.clubNeedPay, reply_markup: { inline_keyboard: [[bot ? { text: "Открыть бота", url: `https://t.me/${bot}?start=club` } : btnApp()]] } });
+}
+async function kickExpired(u) {
+  if (!CLUB_CHAT() || +u.id === ADMIN()) return;
+  const f = flags(u); if (f.has("kick")) return;
+  await tg("banChatMember", { chat_id: CLUB_CHAT(), user_id: u.id, until_date: Math.floor(Date.now() / 1000) + 60 });
+  await tg("unbanChatMember", { chat_id: CLUB_CHAT(), user_id: u.id, only_if_banned: true });
+  f.add("kick"); setFlags(u, f); u.mem = ""; await db().putUser(u);
+}
 
 // ---------- bot ----------
 async function sendConsent(chat) { return tg("sendMessage", { chat_id: chat, text: T.consent, parse_mode: "HTML", disable_web_page_preview: true, reply_markup: kbConsent() }); }
@@ -294,7 +334,8 @@ async function onMessage(m) {
   if (!isTester(m.from.id)) return tg("sendMessage", { chat_id: chat, text: T.soon });
   const u = await touch(m.from); const isAdmin = +m.from.id === ADMIN();
   if (!u.consent) { if (text.startsWith("/start")) return sendConsent(chat); return tg("sendMessage", { chat_id: chat, text: T.consentNeed, reply_markup: kbConsent() }); }
-  if (text.startsWith("/start")) { if (/pay/.test(text)) return sendPay(chat, u); await sendWelcome(chat); if (isAdmin) await tg("sendMessage", { chat_id: chat, text: T.adminHi, reply_markup: kbAdmin() }); if (/plans/.test(text)) await tg("sendMessage", { chat_id: chat, text: T.plans(freeLabel()), parse_mode: "HTML", reply_markup: kbPlans() }); return; }
+  if (text.startsWith("/start")) { if (/pay/.test(text)) return sendPay(chat, u); await sendWelcome(chat); if (CLUB_CHAT() && !(await isMember(u))) await sendClubInvite(chat); if (isAdmin) await tg("sendMessage", { chat_id: chat, text: T.adminHi, reply_markup: kbAdmin() }); if (/plans/.test(text)) await tg("sendMessage", { chat_id: chat, text: T.plans(freeLabel()), parse_mode: "HTML", reply_markup: kbPlans() }); return; }
+  if (text === "/club") { if (await isMember(u)) return tg("sendMessage", { chat_id: chat, text: T.clubIn, reply_markup: { inline_keyboard: [[btnApp()]] } }); return sendClubInvite(chat); }
   if (text === "/app") return tg("sendMessage", { chat_id: chat, text: T.openApp, reply_markup: { inline_keyboard: [[btnApp()]] } });
   if (text === "/plans") return tg("sendMessage", { chat_id: chat, text: T.plans(freeLabel()), parse_mode: "HTML", reply_markup: kbPlans() });
   if (text === "/help") return tg("sendMessage", { chat_id: chat, text: T.faq(ADMIN_NICK()), parse_mode: "HTML", disable_web_page_preview: true, reply_markup: kbBack() });
@@ -308,6 +349,8 @@ async function onMessage(m) {
   if (text.startsWith("+") && text.length > 2) return dictStart(chat, u, text.slice(1).trim(), false);
   if (text === "/remind") { const f = flags(u); f.delete("nocr"); setFlags(u, f); await db().putUser(u); return tg("sendMessage", { chat_id: chat, text: T.chOn }); }
   if (isAdmin) {
+    const fwd = (m.forward_origin && m.forward_origin.chat) || m.forward_from_chat;
+    if (fwd) return tg("sendMessage", { chat_id: chat, parse_mode: "HTML", text: `ID канала «${esc(fwd.title || "")}»: <code>${fwd.id}</code>\n\nВставь его в переменные функции как CLUB_CHAT_ID и добавь меня (бота) админом канала с правом «Добавлять участников».` });
     if (flags(u).has("bc") && text && !text.startsWith("/") && !Object.values(AB).includes(text)) {
       const f = flags(u); f.delete("bc"); setFlags(u, f); await db().putUser(u);
       await db().kvPut(0, { bc_draft: text });
@@ -347,7 +390,7 @@ async function onCallback(cq) {
   if (d === "agree") {
     if (!u.consent) u = await agree(u, cq.from);
     await tg("editMessageReplyMarkup", { chat_id: chat, message_id: m.message_id, reply_markup: { inline_keyboard: [] } });
-    return sendWelcome(chat);
+    await sendWelcome(chat); return sendClubInvite(chat);
   }
   if (!u.consent) return sendConsent(chat);
   if (d === "dadd") { const r = await dictApply(u); await tg("editMessageReplyMarkup", { chat_id: chat, message_id: m.message_id, reply_markup: { inline_keyboard: [] } }); if (!r) return tg("sendMessage", { chat_id: chat, text: "Это уже записано или устарело. Надиктуй ещё раз 🎤" }); return tg("sendMessage", { chat_id: chat, text: `Записала ✓ ${[r.nT ? `дел: ${r.nT}` : "", r.nM ? `трат: ${r.nM}` : ""].filter(Boolean).join(", ")}`, reply_markup: { inline_keyboard: [[btnApp("Открыть приложение")]] } }); }
@@ -381,7 +424,9 @@ async function api(action, body) {
   if (action === "agree") { if (!u.consent) u = await agree(u, user); return [200, { ok: true, consent: true }]; }
   if (action === "me") {
     if (u.consent && !u.trial && +u.id !== ADMIN()) { u.trial = String(Date.now()); await db().putUser(u); }
-    return [200, { ...access(u), consent: !!u.consent, docs: T.DOCS, freeUntil: isFree() ? FREE_UNTIL() : "", trialDays: TRIAL_DAYS(), admin: +u.id === ADMIN(), bot: env("BOT_USERNAME"), plans: T.PLANS.map(p => ({ id: p.id, t: p.t, e: p.e, price: p.price, note: p.note || "", url: isFree() ? null : payLink(u, p) })) }];
+    const acc = access(u);
+    if (u.consent && acc.ok && CLUB_CHAT() && !(await isMember(u))) return [200, { ...acc, ok: false, kind: "club", clubLink: await clubLink(), consent: true, docs: T.DOCS, bot: env("BOT_USERNAME") }];
+    return [200, { ...acc, consent: !!u.consent, docs: T.DOCS, freeUntil: isFree() ? FREE_UNTIL() : "", trialDays: TRIAL_DAYS(), admin: +u.id === ADMIN(), bot: env("BOT_USERNAME"), plans: T.PLANS.map(p => ({ id: p.id, t: p.t, e: p.e, price: p.price, note: p.note || "", url: isFree() ? null : payLink(u, p) })) }];
   }
   if (!u.consent) return [403, { error: "consent" }];
   if (action === "kv") {
@@ -515,6 +560,7 @@ async function accessReminders() {
       else if (now >= end && now < end + 7 * DAY && !rem.has("t2") && !u.paid) { msg = T.trialOver; flag = "t2"; }
     }
     if (paidActive && u.paid <= addDays(today, 2) && !rem.has("p" + u.paid)) { msg = T.paidSoon(ru(u.paid)); flag = "p" + u.paid; }
+    if (!access(u).ok && u.mem) await kickExpired(u);
     if (msg) { const r = await tg("sendMessage", { chat_id: u.id, text: msg, reply_markup: kbPay() }); rem.add(flag); setFlags(u, rem); await db().putUser(u); if (r.ok) sent++; await sleep(40); }
   }
   return sent;
@@ -532,8 +578,8 @@ async function setup(selfUrl, fid) {
   const out = {};
   const hook = env("TG_API") && fid ? `${TG_BASE()}/hook/${fid}` : selfUrl + "?a=tg";
   out.hook = hook;
-  out.webhook = await tg("setWebhook", { url: hook, secret_token: env("WEBHOOK_SECRET"), allowed_updates: ["message", "callback_query"], drop_pending_updates: true });
-  out.commands = await tg("setMyCommands", { commands: [{ command: "start", description: "Начать" }, { command: "app", description: "Открыть приложение" }, ...(isFree() ? [] : [{ command: "plans", description: "Тарифы клуба" }]), { command: "help", description: "Вопросы и поддержка" }, { command: "delete", description: "Удалить мои данные" }] });
+  out.webhook = await tg("setWebhook", { url: hook, secret_token: env("WEBHOOK_SECRET"), allowed_updates: ["message", "callback_query", "chat_join_request"], drop_pending_updates: true });
+  out.commands = await tg("setMyCommands", { commands: [{ command: "start", description: "Начать" }, { command: "app", description: "Открыть приложение" }, ...(isFree() ? [] : [{ command: "plans", description: "Тарифы клуба" }]), { command: "help", description: "Вопросы и поддержка" }, { command: "club", description: "Закрытый клуб" }, { command: "delete", description: "Удалить мои данные" }] });
   out.menu = await tg("setChatMenuButton", { menu_button: { type: "web_app", text: "Открыть клуб", web_app: { url: APP_URL() } } });
   if (ADMIN()) out.adminCmds = await tg("setMyCommands", { scope: { type: "chat", chat_id: ADMIN() }, commands: [{ command: "start", description: "Начать и показать кнопки админа" }, { command: "admin", description: "Все команды" }] });
   return out;
@@ -556,7 +602,7 @@ module.exports.handler = async function (event, context) {
     const a = qs.a || "";
     if (a === "tg" || (!a && method === "POST" && body && body.update_id)) {
       if (env("WEBHOOK_SECRET") && h["x-telegram-bot-api-secret-token"] !== env("WEBHOOK_SECRET")) return { statusCode: 403, body: "no" };
-      if (body.message) await onMessage(body.message); else if (body.callback_query) await onCallback(body.callback_query);
+      if (body.message) await onMessage(body.message); else if (body.callback_query) await onCallback(body.callback_query); else if (body.chat_join_request) await onJoin(body.chat_join_request);
       return { statusCode: 200, body: "ok" };
     }
     if (["me", "agree", "club", "kv", "rem", "delete", "prefs"].includes(a)) { const [c, o] = await api(a, body); return reply(c, o); }
@@ -575,7 +621,7 @@ module.exports.handler = async function (event, context) {
       const t0 = Date.now(); let dbr; try { dbr = await db().health(); } catch (e) { dbr = "ошибка: " + (e && e.message); }
       return reply(200, { webhook_url: w.url || "", pending: w.pending_update_count, last_error: w.last_error_message || "нет", last_error_date: w.last_error_date ? new Date(w.last_error_date * 1000).toISOString() : "", db: dbr, db_ms: Date.now() - t0, admin: ADMIN() || "не задан", secret_set: !!env("WEBHOOK_SECRET"), relay: env("TG_API") || "нет" });
     }
-    if (a === "health") return reply(200, { ok: true, db: await db().health(), token: !!TOKEN(), admin: ADMIN() || null, relay: !!env("TG_API"), freeUntil: FREE_UNTIL(), testers: TESTERS().length });
+    if (a === "health") return reply(200, { ok: true, db: await db().health(), token: !!TOKEN(), admin: ADMIN() || null, relay: !!env("TG_API"), freeUntil: FREE_UNTIL(), testers: TESTERS().length, club: CLUB_CHAT() || "нет" });
     return reply(200, { ok: true, service: "Life By Me" });
   } catch (e) {
     console.log("ERROR", e && e.stack || e);
