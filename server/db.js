@@ -13,7 +13,8 @@ function memoryDb() {
       const ms = [...members.values()].filter(m => m.ch === ch);
       const today = [...marks.values()].filter(m => m.ch === ch && m.day === day && m.v === 1);
       const names = today.map(t => (ms.find(m => m.uid === t.uid) || {}).name || "").filter(Boolean);
-      return { members: ms.length, today: today.length, names };
+      const board = ms.map(m => ({ name: m.name || "", n: [...marks.values()].filter(x => x.ch === ch && x.uid === m.uid && x.v === 1).length })).filter(b => b.name).sort((a, b) => b.n - a.n);
+      return { members: ms.length, today: today.length, names, board };
     },
     async health() { return "memory"; },
   };
@@ -74,11 +75,12 @@ function ydbDb() {
       else await q(`DECLARE $ch AS Utf8; DECLARE $day AS Utf8; DECLARE $uid AS Uint64; DECLARE $v AS Int32; UPSERT INTO club_marks (ch, day, uid, v) VALUES ($ch, $day, $uid, $v);`, { ...p, $v: T.int32(+v) });
     },
     async clubStats(ch, day) {
-      const [cnt, td] = await q(`DECLARE $ch AS Utf8; DECLARE $day AS Utf8;
+      const [cnt, td, bd] = await q(`DECLARE $ch AS Utf8; DECLARE $day AS Utf8;
         SELECT COUNT(*) AS n FROM club_members WHERE ch = $ch;
-        SELECT m.uid AS uid, c.name AS name FROM club_marks AS m LEFT JOIN club_members AS c ON c.ch = m.ch AND c.uid = m.uid WHERE m.ch = $ch AND m.day = $day AND m.v = 1 LIMIT 200;`,
+        SELECT m.uid AS uid, c.name AS name FROM club_marks AS m LEFT JOIN club_members AS c ON c.ch = m.ch AND c.uid = m.uid WHERE m.ch = $ch AND m.day = $day AND m.v = 1 LIMIT 200;
+        SELECT c.name AS name, COUNT(m.uid) AS n FROM club_members AS c LEFT JOIN (SELECT * FROM club_marks WHERE ch = $ch AND v = 1) AS m ON m.uid = c.uid WHERE c.ch = $ch GROUP BY c.name ORDER BY n DESC LIMIT 500;`,
         { $ch: T.utf8(ch), $day: T.utf8(day) });
-      return { members: (cnt && cnt[0] && cnt[0].n) || 0, today: (td || []).length, names: (td || []).map(r => r.name).filter(Boolean) };
+      return { members: (cnt && cnt[0] && cnt[0].n) || 0, today: (td || []).length, names: (td || []).map(r => r.name).filter(Boolean), board: (bd || []).filter(r => r.name).map(r => ({ name: r.name, n: Number(r.n) || 0 })) };
     },
     async health() { const [r] = await q(`SELECT COUNT(*) AS n FROM users;`); return "ydb ok, пользователей: " + ((r && r[0] && r[0].n) || 0); },
   };
