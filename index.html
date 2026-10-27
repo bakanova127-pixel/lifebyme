@@ -1214,7 +1214,6 @@ function weekStrip(){const mon=mondayOf(cur);const w=el("nav",{class:"wstrip","a
 function renderToday(app){const c=cfg(),d=day(cur),off=diffDays(cur,TODAY),p=pct(cur),dd=parseKey(cur);
   const ph=c.cycleOn?phaseOf(S.cycle,cur):null;const pills=el("div",{class:"pills"});
   if(ph)pills.append(el("span",{class:"pill"},el("i",{style:`background:${ph.c}`}),`${ph.day} день · ${ph.key.toLowerCase()}`));
-  if(S.acc&&S.acc.kind==="free")pills.append(el("span",{class:"pill"},`🎁 бесплатно до ${fmtDate(S.acc.until)}`));
   if(S.acc&&S.acc.kind==="trial")pills.append(el("span",{class:"pill",role:"button",tabindex:"0",style:"cursor:pointer",onclick:()=>openBot("plans")},`🎁 пробный: ${S.acc.daysLeft} ${plural(S.acc.daysLeft,"день","дня","дней")}`));
   (S.chs||[]).forEach(ch=>{const cd=diffDays(cur,ch.start)+1;if(cd>=1&&cd<=ch.len)pills.append(el("span",{class:"pill"},`🌱 ${ch.title.replace(/^\d+\s+\S+\s*/,"")||ch.title}: ${cd}/${ch.len}`))});
   app.append(el("header",{class:"hero"},el("div",{},el("div",{class:"date"},`${WDF[dd.getUTCDay()]}, ${fmtDate(cur)}`),el("h1",{},off===0?(c.name?`Привет, ${c.name}`:"Привет!"):off===1?"Завтра":off===-1?"Вчера":fmtDate(cur)),
