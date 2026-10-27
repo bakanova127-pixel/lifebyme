@@ -168,4 +168,84 @@ function ydbDb() {
   };
 }
 
-module.exports = { memoryDb, ydbDb };
+
+// ---------- Object Storage (Yandex Cloud, Россия): простые JSON-файлы в бакете ----------
+let S3_TOKEN = "";
+const setS3Token = t => { if (t) S3_TOKEN = t; };
+let s3Fetch = (url, opts) => fetch(url, opts);
+const setS3Fetch = f => { s3Fetch = f; };
+function s3Db(bucket) {
+  const base = "https://storage.yandexcloud.net/" + bucket + "/";
+  const enc = k => k.split("/").map(encodeURIComponent).join("/");
+  const hdr = extra => Object.assign({ "X-YaCloud-SubjectToken": S3_TOKEN }, extra || {});
+  async function get(key) {
+    const r = await s3Fetch(base + enc(key), { headers: hdr() });
+    if (r.status === 404) return null;
+    if (!r.ok) throw new Error("Хранилище: " + r.status + " при чтении " + key);
+    try { return JSON.parse(await r.text()); } catch (e) { return null; }
+  }
+  async function put(key, obj) {
+    const r = await s3Fetch(base + enc(key), { method: "PUT", headers: hdr({ "Content-Type": "application/json" }), body: JSON.stringify(obj) });
+    if (!r.ok) throw new Error("Хранилище: " + r.status + " при записи " + key);
+  }
+  async function del(key) { const r = await s3Fetch(base + enc(key), { method: "DELETE", headers: hdr() }); if (!r.ok && r.status !== 404) throw new Error("Хранилище: " + r.status + " при удалении " + key); }
+  async function list(prefix) {
+    const out = []; let token = "";
+    for (let i = 0; i < 200; i++) {
+      const q = new URLSearchParams({ "list-type": "2", prefix, "max-keys": "1000" }); if (token) q.set("continuation-token", token);
+      const r = await s3Fetch(base + "?" + q.toString(), { headers: hdr() });
+      if (!r.ok) throw new Error("Хранилище: " + r.status + " при списке " + prefix);
+      const x = await r.text();
+      for (const m of x.matchAll(/<Key>([^<]*)<\/Key>/g)) out.push(m[1].replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'"));
+      const t = x.match(/<NextContinuationToken>([^<]*)<\/NextContinuationToken>/); if (!t || !/<IsTruncated>true/.test(x)) break; token = t[1];
+    }
+    return out;
+  }
+  async function pmap(items, n, fn) { const out = new Array(items.length); let i = 0; await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => { while (i < items.length) { const j = i++; out[j] = await fn(items[j]); } })); return out; }
+  const chk = ch => "club/" + encodeURIComponent(ch) + "/";
+  return {
+    async getUser(id) { return await get(`u/${+id}.json`); },
+    async putUser(u) { await put(`u/${+u.id}.json`, { ...u, id: +u.id }); },
+    async listUsers() { const ks = (await list("u/")).filter(k => k.endsWith(".json")); return (await pmap(ks, 16, get)).filter(Boolean); },
+    async clubJoin(ch, uid, name) { const k = chk(ch) + uid + ".json"; const m = (await get(k)) || { uid: +uid, marks: {} }; m.name = name || m.name || ""; m.uid = +uid; await put(k, m); },
+    async clubMembers(ch) { const ks = await list(chk(ch)); return (await pmap(ks, 16, get)).filter(Boolean).map(m => ({ ch, uid: +m.uid, name: m.name || "" })); },
+    async clubMark(ch, day, uid, v) { const k = chk(ch) + uid + ".json"; const m = (await get(k)) || { uid: +uid, name: "", marks: {} }; m.marks = m.marks || {}; if (v == null) delete m.marks[day]; else m.marks[day] = v; await put(k, m); },
+    async clubDayMarks(ch, day) { const ks = await list(chk(ch)); return (await pmap(ks, 16, get)).filter(m => m && m.marks && m.marks[day] != null).map(m => ({ uid: +m.uid, v: m.marks[day] })); },
+    async clubStats(ch, day) {
+      const ms = (await pmap(await list(chk(ch)), 16, get)).filter(Boolean);
+      const today = ms.filter(m => m.marks && m.marks[day] === 1);
+      const board = ms.map(m => ({ uid: +m.uid, name: m.name || "", n: Object.values(m.marks || {}).filter(v => v === 1).length })).filter(b => b.name).sort((a, b) => b.n - a.n);
+      return { members: ms.length, today: today.length, names: today.map(m => m.name).filter(Boolean), board };
+    },
+    async kvAll(uid) { return (await get(`kv/${+uid}.json`)) || {}; },
+    async kvPut(uid, putObj, dels) { const k = `kv/${+uid}.json`; const o = (await get(k)) || {}; Object.assign(o, putObj || {}); for (const d of dels || []) delete o[d]; await put(k, o); },
+    async remSet(uid, l) {
+      const idx = (await get("rem/_index.json")) || {};
+      if (l.length) { await put(`rem/${+uid}.json`, l); idx[uid] = Math.min(...l.map(r => r.at)); } else { await del(`rem/${+uid}.json`); delete idx[uid]; }
+      await put("rem/_index.json", idx);
+    },
+    async remDue(now) {
+      const idx = (await get("rem/_index.json")) || {}; const out = [];
+      for (const [uid, at] of Object.entries(idx)) { if (at > now) continue; const l = (await get(`rem/${uid}.json`)) || []; l.filter(r => r.at <= now).forEach(r => out.push({ uid: +uid, ...r })); }
+      return out;
+    },
+    async remDel(items) {
+      const idx = (await get("rem/_index.json")) || {}; const by = {};
+      items.forEach(r => (by[r.uid] = by[r.uid] || new Set()).add(r.id));
+      for (const [uid, ids] of Object.entries(by)) {
+        const l = ((await get(`rem/${uid}.json`)) || []).filter(r => !ids.has(r.id));
+        if (l.length) { await put(`rem/${uid}.json`, l); idx[uid] = Math.min(...l.map(r => r.at)); } else { await del(`rem/${uid}.json`); delete idx[uid]; }
+      }
+      await put("rem/_index.json", idx);
+    },
+    async once(key) { const k = "sent/" + require("crypto").createHash("sha1").update(key).digest("hex") + ".json"; if (await get(k)) return false; await put(k, { key, at: Date.now() }); return true; },
+    async deleteUser(uid) {
+      await del(`u/${+uid}.json`); await del(`kv/${+uid}.json`);
+      const idx = (await get("rem/_index.json")) || {}; if (idx[uid] != null) { delete idx[uid]; await put("rem/_index.json", idx); } await del(`rem/${+uid}.json`);
+      for (const k of (await list("club/")).filter(k => k.endsWith("/" + (+uid) + ".json"))) await del(k);
+    },
+    async health() { const n = (await list("u/")).length; return "хранилище ok, пользователей: " + n; },
+  };
+}
+
+module.exports = { memoryDb, ydbDb, s3Db, setS3Token, setS3Fetch };

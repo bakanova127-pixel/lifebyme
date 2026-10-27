@@ -2,7 +2,7 @@
 // Данные участников хранятся в YDB (Россия). Данные о здоровье (цикл, вес, самочувствие) сюда не попадают — они остаются на телефоне.
 const crypto = require("crypto");
 const T = require("./texts");
-const { memoryDb, ydbDb } = require("./db");
+const { memoryDb, ydbDb, s3Db, setS3Token } = require("./db");
 
 const env = k => process.env[k] || "";
 const TOKEN = () => env("BOT_TOKEN");
@@ -19,7 +19,7 @@ const PROD_KEY = () => env("PRODAMUS_KEY");
 const LOCAL_ONLY = /^(cycle|weight|care)(__|$)/; // данные о здоровье — никогда не храним на сервере
 
 let DB = null;
-const db = () => DB || (DB = env("YDB_ENDPOINT") ? ydbDb() : memoryDb());
+const db = () => DB || (DB = env("BUCKET") ? s3Db(env("BUCKET")) : env("YDB_ENDPOINT") ? ydbDb() : memoryDb());
 const setDb = d => { DB = d; };
 
 // ---------- helpers ----------
@@ -482,6 +482,7 @@ async function setup(selfUrl, fid) {
 const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "Content-Type", "Access-Control-Allow-Methods": "POST, GET, OPTIONS" };
 const reply = (code, obj) => ({ statusCode: code, headers: { "Content-Type": "application/json; charset=utf-8", ...CORS }, body: JSON.stringify(obj) });
 module.exports.handler = async function (event, context) {
+  setS3Token(context && context.token && context.token.access_token);
   try {
     if (event && Array.isArray(event.messages) && event.messages[0] && !event.httpMethod) { const n = await reminders(); return { statusCode: 200, body: "reminders " + JSON.stringify(n) }; }
     const method = event.httpMethod || "GET";
