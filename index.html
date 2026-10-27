@@ -640,7 +640,7 @@ function consentScreen(me){return new Promise(res=>{$("tabbar").hidden=true;cons
       el("button",{class:"chip small",type:"button",style:"align-self:flex-start",onclick:()=>open(docs+"consent.html")},"📄 Согласие на обработку данных"),
       el("button",{class:"chip small",type:"button",style:"align-self:flex-start",onclick:()=>open(docs+"privacy.html")},"📄 Политика обработки данных"),box,btn))})}
 function offlineScreen(){$("tabbar").hidden=true;$("app").replaceChildren(topBar(),el("div",{class:"hero"},el("div",{},el("div",{class:"date"},"нет связи"),el("h1",{},"Не могу достучаться до сервера"))),
-  el("div",{class:"card"},el("p",{style:"margin:0"},"Проверь интернет и попробуй ещё раз. Твои данные в безопасности."),el("button",{class:"btn full",type:"button",onclick:()=>location.reload()},"Попробовать снова")))}
+  el("div",{class:"card"},el("p",{style:"margin:0"},"Проверь интернет и попробуй ещё раз. Твои данные в безопасности."),apiErr?el("p",{class:"muted",style:"margin:0;font-size:.8rem;word-break:break-all"},"Для Яны: "+apiErr):null,el("button",{class:"btn full",type:"button",onclick:()=>location.reload()},"Попробовать снова")))}
 const timers={};
 function save(key,val,delay){if(key.startsWith("d_")&&typeof histUpd==="function"&&S.hist)histUpd(key.slice(2),val);clearTimeout(timers[key]);timers[key]=setTimeout(()=>store.set(key,val),delay??400)}
 /* big values (longer than one Telegram cell) are split into parts: name__0..name__k + name__n */
@@ -1172,7 +1172,7 @@ function render(){if(!loaded){$("app").replaceChildren(el("div",{class:"brand"},
 
 /* ---------- history, badges, club ---------- */
 const API="https://functions.yandexcloud.net/d4emt5ttqi4gert20199";/* адрес функции Yandex Cloud — после подключения сервера */
-async function apiCall(a,body){if(!API||!inTG||!tg.initData)return null;try{const r=await fetch(API+"?a="+a,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(Object.assign({initData:tg.initData},body||{}))});return (r.ok||r.status===409)?await r.json():null}catch(e){return null}}
+let apiErr="";async function apiCall(a,body){if(!API||!inTG||!tg.initData)return null;try{const r=await fetch(API+"?a="+a,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(Object.assign({initData:tg.initData},body||{}))});if(r.ok||r.status===409)return await r.json();let t="";try{t=(await r.text()).slice(0,200)}catch(e){}apiErr=`${a}: ${r.status} ${t}`;return null}catch(e){apiErr=`${a}: ${e&&e.message||e}`;return null}}
 async function accLoad(){const j=await apiCall("me");if(j&&typeof j.ok==="boolean"){S.acc=j;render()}}
 function openBot(payload){const b=S.acc&&S.acc.bot;if(!b){toast("Напиши в бот клуба 🌸");return}const u=`https://t.me/${b}?start=${payload||"plans"}`;try{tg.openTelegramLink(u)}catch(e){location.href=u}}
 function renderPaywall(){$("tabbar").hidden=true;const a=S.acc||{};const app=$("app");const was=a.paidWas;
@@ -1771,7 +1771,7 @@ function renderMe(app){const c=cfg();app.append(el("div",{class:"hero"},el("div"
     row("День рождения",bi?bi.date:"—"),
     el("button",{class:"btn ghost",type:"button",onclick:()=>{ob={step:1,data:Object.assign({},DEF,S.settings)};renderOb()}},"Изменить настройки")));
   app.append(notifyCard());
-  app.append(el("p",{class:"muted",style:"font-size:.8rem;text-align:center;margin:8px 0 0"},(SRV.on?"Данные хранятся на сервере клуба в России. Цикл, вес и самочувствие — только на этом телефоне.":inTG?"Данные сохраняются в твоём Telegram. Цикл, вес и самочувствие — только на этом телефоне.":"Превью: данные хранятся только в этом браузере.")+" · версия 23"))}
+  app.append(el("p",{class:"muted",style:"font-size:.8rem;text-align:center;margin:8px 0 0"},(SRV.on?"Данные хранятся на сервере клуба в России. Цикл, вес и самочувствие — только на этом телефоне.":inTG?"Данные сохраняются в твоём Telegram. Цикл, вес и самочувствие — только на этом телефоне.":"Превью: данные хранятся только в этом браузере.")+" · версия 24"))}
 
 /* ================= boot ================= */
 async function boot(){document.body.dataset.skin="kar";render();
