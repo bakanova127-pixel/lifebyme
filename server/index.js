@@ -16,6 +16,8 @@ const TG_BASE = () => (env("TG_API") || "https://api.telegram.org").replace(/\/+
 const DAY = 864e5;
 const PROD_URL = () => (env("PRODAMUS_URL") || "").replace(/\/+$/, "");
 const PROD_KEY = () => env("PRODAMUS_KEY");
+const TESTERS = () => env("TESTERS").split(/[\s,;]+/).filter(Boolean).map(Number); // тестовый режим: пока список не пуст, клуб открыт только этим id и админу
+const isTester = id => !TESTERS().length || +id === ADMIN() || TESTERS().includes(+id);
 const LOCAL_ONLY = /^(cycle|weight|care)(__|$)/; // данные о здоровье — никогда не храним на сервере
 
 let DB = null;
@@ -245,6 +247,7 @@ async function onMessage(m) {
   const chat = m.chat.id; if (m.chat.type !== "private") return;
   const text = (m.text || "").trim();
   if (text === "/myid") return tg("sendMessage", { chat_id: chat, text: `Твой id: ${m.from.id}` });
+  if (!isTester(m.from.id)) return tg("sendMessage", { chat_id: chat, text: T.soon });
   const u = await touch(m.from); const isAdmin = +m.from.id === ADMIN();
   if (!u.consent) { if (text.startsWith("/start")) return sendConsent(chat); return tg("sendMessage", { chat_id: chat, text: T.consentNeed, reply_markup: kbConsent() }); }
   if (text.startsWith("/start")) { if (/pay/.test(text)) return sendPay(chat, u); await sendWelcome(chat); if (isAdmin) await tg("sendMessage", { chat_id: chat, text: T.adminHi, reply_markup: kbAdmin() }); if (/plans/.test(text)) await tg("sendMessage", { chat_id: chat, text: T.plans(freeLabel()), parse_mode: "HTML", reply_markup: kbPlans() }); return; }
@@ -272,7 +275,8 @@ async function onMessage(m) {
 }
 async function onCallback(cq) {
   const d = cq.data, m = cq.message; await tg("answerCallbackQuery", { callback_query_id: cq.id });
-  if (!m) return; let u = await touch(cq.from); const chat = m.chat.id;
+  if (!m) return; if (!isTester(cq.from.id)) return tg("sendMessage", { chat_id: m.chat.id, text: T.soon });
+  let u = await touch(cq.from); const chat = m.chat.id;
   if (d.startsWith("v|")) { // голосование
     const [, pid, i] = d.split("|"); const cfg = await clubFull(); const vp = (cfg.posts || []).find(p => p.id === pid && p.vote);
     if (!vp || !vp.vote[+i]) return; if (!u.consent) return sendConsent(chat);
@@ -319,6 +323,7 @@ function checkInitData(initData, maxAgeSec = 30 * 86400) {
 }
 async function api(action, body) {
   const user = checkInitData(body.initData); if (!user) return [401, { error: "auth" }];
+  if (!isTester(user.id)) return [200, { ok: false, kind: "soon", consent: true, docs: T.DOCS }];
   let u = await touch(user);
   if (action === "agree") { if (!u.consent) u = await agree(u, user); return [200, { ok: true, consent: true }]; }
   if (action === "me") {
@@ -368,6 +373,7 @@ async function api(action, body) {
     return [200, st];
   }
   if (action === "delete") { await db().deleteUser(u.id); return [200, { ok: true }]; }
+  if (action === "prefs") { const f = flags(u); if (body.challenge === false) f.add("nocr"); else if (body.challenge === true) f.delete("nocr"); setFlags(u, f); await db().putUser(u); return [200, { ok: true }]; }
   return [404, { error: "unknown" }];
 }
 
@@ -496,7 +502,7 @@ module.exports.handler = async function (event, context) {
       if (body.message) await onMessage(body.message); else if (body.callback_query) await onCallback(body.callback_query);
       return { statusCode: 200, body: "ok" };
     }
-    if (["me", "agree", "club", "kv", "rem", "delete"].includes(a)) { const [c, o] = await api(a, body); return reply(c, o); }
+    if (["me", "agree", "club", "kv", "rem", "delete", "prefs"].includes(a)) { const [c, o] = await api(a, body); return reply(c, o); }
     if (a === "prodamus") { const [c, t] = await onProdamus(raw, h, h["content-type"]); return { statusCode: c, headers: { "Content-Type": "text/plain" }, body: t }; }
     if (a === "setup") {
       if (!env("WEBHOOK_SECRET") || qs.s !== env("WEBHOOK_SECRET")) return reply(403, { error: "нужен правильный секрет: ?a=setup&s=..." });
@@ -512,7 +518,7 @@ module.exports.handler = async function (event, context) {
       const t0 = Date.now(); let dbr; try { dbr = await db().health(); } catch (e) { dbr = "ошибка: " + (e && e.message); }
       return reply(200, { webhook_url: w.url || "", pending: w.pending_update_count, last_error: w.last_error_message || "нет", last_error_date: w.last_error_date ? new Date(w.last_error_date * 1000).toISOString() : "", db: dbr, db_ms: Date.now() - t0, admin: ADMIN() || "не задан", secret_set: !!env("WEBHOOK_SECRET"), relay: env("TG_API") || "нет" });
     }
-    if (a === "health") return reply(200, { ok: true, db: await db().health(), token: !!TOKEN(), admin: ADMIN() || null, relay: !!env("TG_API"), freeUntil: FREE_UNTIL() });
+    if (a === "health") return reply(200, { ok: true, db: await db().health(), token: !!TOKEN(), admin: ADMIN() || null, relay: !!env("TG_API"), freeUntil: FREE_UNTIL(), testers: TESTERS().length });
     return reply(200, { ok: true, service: "Life By Me" });
   } catch (e) {
     console.log("ERROR", e && e.stack || e);
