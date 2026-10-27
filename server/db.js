@@ -36,7 +36,7 @@ function memoryDb() {
 }
 
 function ydbDb() {
-  const { Driver, MetadataAuthService, TypedValues } = require("ydb-sdk");
+  const { Driver, MetadataAuthService, TypedValues, ExecuteQuerySettings, OperationParams, AUTO_TX } = require("ydb-sdk");
   // YDB_ENDPOINT можно вставить целиком из консоли: grpcs://ydb.serverless.yandexcloud.net:2135/?database=/ru-central1/...
   let endpoint = (process.env.YDB_ENDPOINT || "").trim(), database = (process.env.YDB_DATABASE || "").trim();
   if (endpoint.includes("?database=")) { const [e, d] = endpoint.split("?database="); endpoint = e.replace(/\/+$/, ""); database = database || decodeURIComponent(d); }
@@ -50,7 +50,8 @@ function ydbDb() {
     if (!ready) ready = driver.ready(10000).then(ok => { if (!ok) { ready = null; throw new Error("YDB не подключилась"); } });
     await ready;
     return driver.tableClient.withSession(async s => {
-      const res = await s.executeQuery(text, params || {});
+      const st = new ExecuteQuerySettings().withKeepInCache(true).withOperationParams(new OperationParams().withOperationTimeoutSeconds(45).withCancelAfterSeconds(45));
+      const res = await s.executeQuery(text, params || {}, AUTO_TX, st);
       return (res.resultSets || []).map(rows);
     });
   };
