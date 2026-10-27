@@ -1808,12 +1808,22 @@ function dataCard(){const docs=(S.acc&&S.acc.docs)||"https://bakanova127-pixel.g
   return el("div",{class:"card"},el("h2",{},"Мои данные"),el("p",{class:"muted",style:"margin:0;font-size:.9rem"},"Хранятся на сервере в России (Yandex Cloud). Цикл, вес и самочувствие — только на этом телефоне."),
     el("button",{class:"chip small",type:"button",style:"align-self:flex-start",onclick:()=>open(docs+"privacy.html")},"📄 Политика обработки данных"),
     el("button",{class:"chip small",type:"button",style:"align-self:flex-start",onclick:()=>open(docs+"consent.html")},"📄 Согласие на обработку данных"),del)}
-/* «Пригласи друга»: личная ссылка в бот; друг вступил в клуб → +1 месяц бесплатно */
+/* «Мой доступ»: до какого числа открыт клуб и сколько недель подарено за друзей */
+function accessCard(){const a=S.acc,refs=a.refs||[],gift=a.giftEnd&&a.giftEnd>=TODAY?a.giftEnd:"";
+  const main=a.kind==="free"?(gift?`Ноябрь бесплатный для всех, а потом клуб открыт до ${fmtDate(gift)} 🎁`:"Сейчас клуб бесплатный для всех 🖤"):
+    a.kind==="gift"?`Клуб открыт до ${fmtDate(a.until)} 🎁`:a.kind==="paid"?`Клуб открыт до ${fmtDate(a.until)} 💗`:
+    a.kind==="trial"?`Пробный период: осталось ${a.daysLeft} ${plural(a.daysLeft,"день","дня","дней")} 🎁`:"Доступ закончился";
+  const free0=a.freeLast?shift(a.freeLast,1):"";const weeks=gift&&free0?Math.max(0,Math.round(diffDays(gift,[free0,TODAY].sort().pop())/7+(1/7))):0;
+  return el("div",{class:"card"},el("h2",{},"Мой доступ"),el("p",{style:"margin:0;font-size:1.05rem"},main),
+    gift&&(a.kind==="free"||a.kind==="gift"||a.kind==="paid")?el("p",{class:"muted",style:"margin:0;font-size:.88rem"},`Бесплатные недели за друзей${weeks?`: ${weeks}`:""} · до ${fmtDate(gift)}`):null,
+    refs.length?el("p",{class:"muted",style:"margin:0;font-size:.88rem"},`По твоей ссылке пришли: ${refs.join(", ")}`):null,
+    a.kind==="free"?null:el("button",{class:"btn ghost",type:"button",onclick:()=>openBot("pay")},a.kind==="paid"||a.kind==="gift"?"Продлить доступ":"Тарифы и оплата"))}
+/* «Пригласи друга»: неделя другу и неделя тебе */
 function inviteCard(){const link=S.acc&&S.acc.ref;if(!link)return null;const n=+(S.acc.refn||0);
-  const share=`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent("Присоединяйся к Life By Me — клубу, где мы вместе держим одну привычку 21 день 🖤")}`;
+  const share=`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent("Присоединяйся к Life By Me — клубу, где мы вместе держим одну привычку 21 день. По моей ссылке у тебя неделя бесплатно 🖤")}`;
   const inp=el("input",{id:"refLink",value:link,readonly:"readonly","aria-label":"Моя ссылка-приглашение"});
   return el("div",{class:"card"},el("div",{class:"hrow"},el("h2",{},"Пригласи друга 🎁"),n?el("span",{class:"tag"},`пришли: ${n}`):null),
-    el("p",{style:"margin:0"},"Друг вступает в клуб по твоей ссылке, тебе +1 месяц бесплатно. Сколько друзей, столько месяцев."),inp,
+    el("p",{style:"margin:0"},"Друг получает неделю бесплатно, и ты тоже +1 неделю. Сколько друзей, столько недель."),inp,
     el("div",{class:"row2"},el("button",{class:"btn",type:"button",onclick:()=>{haptic("light");try{if(inTG&&tg.openTelegramLink){tg.openTelegramLink(share);return}}catch(e){}window.open(share,"_blank")}},"📤 Отправить другу"),
       el("button",{class:"btn ghost",type:"button",onclick:async()=>{try{await navigator.clipboard.writeText(link);toast("Ссылка скопирована")}catch(e){inp.select();toast("Выдели и скопируй ссылку")}}},"Скопировать")))}
 /* «Первый день за 3 минуты»: три шага на главной, пока не сделаны */
@@ -1830,7 +1840,7 @@ function renderMe(app){const c=cfg();app.append(el("div",{class:"hero"},el("div"
     el("div",{},el("b",{style:"font-family:var(--display);font-size:1.6rem;display:block"},days),el("span",{class:"muted",style:"font-size:.8rem"},"дней с отметками")),
     el("div",{},el("b",{style:"font-family:var(--display);font-size:1.6rem;display:block"},str),el("span",{class:"muted",style:"font-size:.8rem"},"тренировок")),
     el("div",{},el("b",{style:"font-family:var(--display);font-size:1.6rem;display:block"},Math.max(0,...c.habits.map(streak))),el("span",{class:"muted",style:"font-size:.8rem"},"лучшая серия")))));
-  if(S.acc&&S.acc.kind!=="admin")app.append(el("div",{class:"card"},el("h2",{},"Мой доступ"),el("p",{style:"margin:0"},S.acc.kind==="paid"?`Клуб оплачен до ${fmtDate(S.acc.until)} 💗`:S.acc.kind==="trial"?`Пробный период: осталось ${S.acc.daysLeft} ${plural(S.acc.daysLeft,"день","дня","дней")} 🎁`:"Доступ закончился"),el("button",{class:"btn ghost",type:"button",onclick:()=>openBot("pay")},S.acc.kind==="paid"?"Продлить доступ":"Тарифы и оплата")));
+  if(S.acc&&S.acc.kind!=="admin")app.append(accessCard());
   app.append(badgesCard());
   const ic=inviteCard();if(ic)app.append(ic);
   if(THEMES.length>1)app.append(themePicker());
@@ -1845,7 +1855,7 @@ function renderMe(app){const c=cfg();app.append(el("div",{class:"hero"},el("div"
     row("День рождения",bi?bi.date:"—"),
     el("button",{class:"btn ghost",type:"button",onclick:()=>{ob={step:1,data:Object.assign({},DEF,S.settings)};renderOb()}},"Изменить настройки")));
   app.append(notifyCard());
-  app.append(el("p",{class:"muted",style:"font-size:.8rem;text-align:center;margin:8px 0 0"},(SRV.on?"Данные хранятся на сервере клуба в России. Цикл, вес и самочувствие — только на этом телефоне.":inTG?"Данные сохраняются в твоём Telegram. Цикл, вес и самочувствие — только на этом телефоне.":"Превью: данные хранятся только в этом браузере.")+" · версия 26"))}
+  app.append(el("p",{class:"muted",style:"font-size:.8rem;text-align:center;margin:8px 0 0"},(SRV.on?"Данные хранятся на сервере клуба в России. Цикл, вес и самочувствие — только на этом телефоне.":inTG?"Данные сохраняются в твоём Telegram. Цикл, вес и самочувствие — только на этом телефоне.":"Превью: данные хранятся только в этом браузере.")+" · версия 27"))}
 
 /* ================= boot ================= */
 async function boot(){document.body.dataset.skin="kar";render();

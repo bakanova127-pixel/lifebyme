@@ -58,8 +58,10 @@ function access(u) {
   if (!u) return { ok: false, kind: "none" };
   if (+u.id === ADMIN()) return { ok: true, kind: "admin" };
   const today = mskDay();
-  if (u.paid && u.paid >= today) return { ok: true, kind: "paid", until: u.paid };
-  if (isFree()) return { ok: true, kind: "free", until: FREE_UNTIL() };
+  const gift = u.gift && u.gift >= today ? u.gift : "";
+  if (u.paid && u.paid >= today) return { ok: true, kind: "paid", until: [u.paid, gift].sort().pop(), paidUntil: u.paid, gift };
+  if (isFree()) return { ok: true, kind: "free", until: FREE_UNTIL(), gift };
+  if (gift) return { ok: true, kind: "gift", until: gift, gift };
   const end = trialEnd(u);
   if (end && Date.now() < end) return { ok: true, kind: "trial", ends: end, daysLeft: Math.ceil((end - Date.now()) / DAY) };
   return { ok: false, kind: u.trial ? "expired" : "new", paidWas: u.paid || "" };
@@ -133,11 +135,12 @@ async function onProdamus(raw, headers, ctype) {
   const u = await db().getUser(+m[1]); if (!u) return [200, "success"];
   const rem = flags(u); const tag = "o" + m[3];
   if (rem.has(tag)) return [200, "success"]; // уже засчитано
-  const base = u.paid && u.paid >= mskDay() ? u.paid : mskDay();
+  const base = [u.paid || "", u.gift || "", mskDay()].sort().pop();
   u.paid = addDays(base, plan.days); rem.add(tag); setFlags(u, [...rem].filter(x => !x.startsWith("p")));
   await db().putUser(u);
   await tg("sendMessage", { chat_id: u.id, parse_mode: "HTML", text: T.paid(plan.t, ru(u.paid)), reply_markup: { inline_keyboard: [[btnApp()]] } });
   if (CLUB_CHAT() && !(await isMember(u))) await sendClubInvite(u.id);
+  await refCredit(u); // друг оплатил — пригласившему неделя
   if (ADMIN()) await tg("sendMessage", { chat_id: ADMIN(), parse_mode: "HTML", text: `💰 <b>Оплата!</b> ${esc(u.name)}${u.username ? " @" + esc(u.username) : ""}\nТариф: ${plan.t} — ${data.sum} ₽\nДоступ до ${ru(u.paid)}` });
   return [200, "success"];
 }
@@ -184,7 +187,7 @@ async function onJoin(j) {
   const uid = +j.from.id; const u = await db().getUser(uid); const a = access(u);
   if (u && u.consent && a.ok && isTester(uid)) {
     await tg("approveChatJoinRequest", { chat_id: j.chat.id, user_id: uid }); u.mem = String(Date.now()); const f = flags(u); f.delete("kick"); setFlags(u, f); await db().putUser(u);
-    await refCredit(u);
+    await refOnJoin(u);
     return tg("sendMessage", { chat_id: uid, text: T.clubIn, reply_markup: { inline_keyboard: [[btnApp()]] } });
   }
   await tg("declineChatJoinRequest", { chat_id: j.chat.id, user_id: uid });
@@ -205,7 +208,7 @@ async function sendWelcome(chat) {
   const r = await tg("sendPhoto", { chat_id: chat, photo: PHOTO(), caption: T.welcome(freeLabel()), parse_mode: "HTML", reply_markup: kbMain() });
   if (!r.ok) await tg("sendMessage", { chat_id: chat, text: T.welcome(freeLabel()), parse_mode: "HTML", reply_markup: kbMain() });
 }
-const accLabel = a => a.kind === "paid" ? "оплачено до " + ru(a.until) : a.kind === "free" ? "бесплатный месяц" : a.kind === "trial" ? "пробный" : a.kind === "expired" ? "пробный закончился" : a.kind === "admin" ? "админ" : "не открывал(а) приложение";
+const accLabel = a => a.kind === "paid" ? "оплачено до " + ru(a.until) : a.kind === "gift" ? "неделя за друзей до " + ru(a.until) : a.kind === "free" ? "бесплатный месяц" : a.kind === "trial" ? "пробный" : a.kind === "expired" ? "пробный закончился" : a.kind === "admin" ? "админ" : "не открывал(а) приложение";
 // ---------- анонсы: управление прямо в боте ----------
 async function postsSave(list) { await db().kvPut(0, { posts: JSON.stringify(list) }); const cfg = await clubFull(); cfg.posts = list; }
 const postHead = p => `🗓 <b>${ru(p.date)}, ${p.time || "12:00"}</b>${p.vote ? " · с голосованием" : ""}${p.report ? " · с итогами челленджа" : ""}`;
@@ -393,7 +396,7 @@ async function onMessage(m) {
   const refM = text.match(/^\/start ref_(\d+)/); if (refM && !u.ref && !u.consent && +refM[1] !== +u.id) { u.ref = +refM[1]; await db().putUser(u); }
   if (!u.consent) { if (text.startsWith("/start")) return sendConsent(chat); return tg("sendMessage", { chat_id: chat, text: T.consentNeed, reply_markup: kbConsent() }); }
   if (text.startsWith("/start")) { if (/pay/.test(text)) return sendPay(chat, u); await sendWelcome(chat); if (CLUB_CHAT() && !(await isMember(u))) await sendClubInvite(chat); if (isAdmin) await tg("sendMessage", { chat_id: chat, text: T.adminHi, reply_markup: kbAdmin() }); if (/plans/.test(text)) await tg("sendMessage", { chat_id: chat, text: T.plans(freeLabel()), parse_mode: "HTML", reply_markup: kbPlans() }); return; }
-  if (text === "/club") { if (await isMember(u)) return tg("sendMessage", { chat_id: chat, text: T.clubIn, reply_markup: { inline_keyboard: [[btnApp()]] } }); return sendClubInvite(chat); }
+  if (text === "/club") { const a = access(u); const line = a.ok && a.until ? `\n\n${T.accLine(a, ru(a.until), a.gift ? ru(a.gift) : "")}` : ""; if (await isMember(u)) return tg("sendMessage", { chat_id: chat, text: T.clubIn + line, reply_markup: { inline_keyboard: [[btnApp()]] } }); await sendClubInvite(chat); if (line) await tg("sendMessage", { chat_id: chat, text: line.trim() }); return; }
   if (text === "/invite" || text === "/start invite") return sendInvite(chat, u);
   if (flags(u).has("fbt") && text && !text.startsWith("/")) {
     const f = flags(u); f.delete("fbt"); setFlags(u, f); await db().putUser(u);
@@ -468,8 +471,9 @@ async function onCallback(cq) {
   if (d === "agree") {
     if (!u.consent) u = await agree(u, cq.from);
     await tg("editMessageReplyMarkup", { chat_id: chat, message_id: m.message_id, reply_markup: { inline_keyboard: [] } });
+    await refFriend(u); // неделя другу по приглашению — сразу после согласия
     await sendWelcome(chat); await sendClubInvite(chat);
-    if (!CLUB_CHAT()) await refCredit(u);
+    if (!CLUB_CHAT()) await refOnJoin(u);
     return tg("sendMessage", { chat_id: chat, parse_mode: "HTML", text: T.firstDay, reply_markup: { inline_keyboard: [[btnApp("1️⃣ Открыть приложение")]] } });
   }
   if (!u.consent) return sendConsent(chat);
@@ -516,7 +520,7 @@ async function api(action, body) {
     if (u.consent && !u.trial && +u.id !== ADMIN()) { u.trial = String(Date.now()); await db().putUser(u); }
     const acc = access(u);
     if (u.consent && acc.ok && CLUB_CHAT() && !(await isMember(u))) return [200, { ...acc, ok: false, kind: "club", clubLink: await clubLink(), consent: true, docs: T.DOCS, bot: env("BOT_USERNAME") }];
-    return [200, { ...acc, consent: !!u.consent, docs: T.DOCS, freeUntil: isFree() ? FREE_UNTIL() : "", trialDays: TRIAL_DAYS(), admin: +u.id === ADMIN(), bot: env("BOT_USERNAME"), joined: +u.trial || +u.created || 0, refn: +u.refn || 0, ref: refLink(u), plans: T.PLANS.map(p => ({ id: p.id, t: p.t, e: p.e, price: p.price, note: p.note || "", url: isFree() ? null : payLink(u, p) })) }];
+    return [200, { ...acc, consent: !!u.consent, docs: T.DOCS, freeUntil: isFree() ? FREE_UNTIL() : "", trialDays: TRIAL_DAYS(), admin: +u.id === ADMIN(), bot: env("BOT_USERNAME"), joined: +u.trial || +u.created || 0, refn: +u.refn || 0, refs: String(u.refs || "").split(",").filter(Boolean), ref: refLink(u), giftEnd: u.gift || "", freeLast: lastFreeDay(), plans: T.PLANS.map(p => ({ id: p.id, t: p.t, e: p.e, price: p.price, note: p.note || "", url: isFree() ? null : payLink(u, p) })) }];
   }
   if (!u.consent) return [403, { error: "consent" }];
   if (action === "kv") {
@@ -649,14 +653,16 @@ async function accessReminders() {
   for (const u of us) {
     if (+u.id === ADMIN() || !u.consent) continue;
     const rem = flags(u); let msg = null, flag = null;
-    const paidActive = u.paid && u.paid >= today; const end = trialEnd(u);
-    if (!paidActive && end) {
+    const acc = access(u); const until = acc.ok && (acc.kind === "paid" || acc.kind === "gift") ? acc.until : "";
+    const paidActive = !!until; const end = trialEnd(u);
+    if (paidActive && acc.kind === "gift" && now >= freeEnd() && now < freeEnd() + DAY && !rem.has("g1")) { msg = T.giftNow(ru(until)); flag = "g1"; }
+    else if (!paidActive && end) {
       const createdInFree = +u.trial < freeEnd();
       if (createdInFree && now >= freeEnd() && now < freeEnd() + DAY && !rem.has("f1")) { msg = T.freeOver; flag = "f1"; }
       else if (now >= end - DAY && now < end && !rem.has("t1")) { msg = T.trialSoon; flag = "t1"; }
       else if (now >= end && now < end + 7 * DAY && !rem.has("t2") && !u.paid) { msg = T.trialOver; flag = "t2"; }
     }
-    if (paidActive && u.paid <= addDays(today, 2) && !rem.has("p" + u.paid)) { msg = T.paidSoon(ru(u.paid)); flag = "p" + u.paid; }
+    if (paidActive && until <= addDays(today, 1) && !rem.has("p" + until)) { msg = acc.kind === "gift" ? T.giftSoon(ru(until)) : T.paidSoon(ru(until)); flag = "p" + until; }
     if (!access(u).ok && u.mem) await kickExpired(u);
     if (msg) { const r = await tg("sendMessage", { chat_id: u.id, text: msg, reply_markup: kbPay() }); rem.add(flag); setFlags(u, rem); await db().putUser(u); if (r.ok) sent++; await sleep(40); }
   }
@@ -683,23 +689,35 @@ async function fbSummary(chat) {
   return tg("sendMessage", { chat_id: chat, parse_mode: "HTML", text: `💬 <b>Отзывы за неделю с ${ruShort(last[0].wk)}</b>\nОтветили: ${last.length}\nСредняя оценка: ${avg.toFixed(1)} из 5\n\n${txt || "Комментариев нет."}` });
 }
 
-// ---------- «Пригласи друга»: друг вступил в клуб → другу-пригласившему +1 месяц ----------
+// ---------- «Пригласи друга»: неделя другу и неделя тому, кто пригласил ----------
+// В ноябре (бесплатный месяц) пригласившему неделя засчитывается, когда друг вступил в клуб.
+// С декабря — когда друг впервые оплатил (так нельзя накрутить недели фейковыми аккаунтами).
+// Подаренные недели начинаются после бесплатного ноября и складываются: до 7, до 14 декабря и т. д.
+const WEEK = 7;
 const refLink = u => env("BOT_USERNAME") ? `https://t.me/${env("BOT_USERNAME")}?start=ref_${u.id}` : "";
+const lastFreeDay = () => addDays(FREE_UNTIL(), -1);
+function addGift(u, days) { const base = [u.gift || "", u.paid || "", mskDay(), lastFreeDay()].sort().pop(); u.gift = addDays(base, days); setFlags(u, [...flags(u)].filter(x => !x.startsWith("p"))); return u.gift; }
 async function sendInvite(chat, u) {
   const link = refLink(u); if (!link) return tg("sendMessage", { chat_id: chat, text: "Ссылка-приглашение скоро появится 🖤" });
   const n = +u.refn || 0;
-  return tg("sendMessage", { chat_id: chat, parse_mode: "HTML", disable_web_page_preview: true, text: T.invite(link, n), reply_markup: { inline_keyboard: [[{ text: "📤 Отправить другу", url: `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(T.inviteShare)}` }]] } });
+  return tg("sendMessage", { chat_id: chat, parse_mode: "HTML", disable_web_page_preview: true, text: T.invite(link, n, u.gift && u.gift >= mskDay() ? ru(u.gift) : ""), reply_markup: { inline_keyboard: [[{ text: "📤 Отправить другу", url: `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(T.inviteShare)}` }]] } });
 }
-async function refCredit(u) {
+async function refFriend(u) { // неделя другу, который пришёл по ссылке
+  if (!u || !u.ref || +u.ref === +u.id || flags(u).has("rg")) return;
+  const f = flags(u); f.add("rg"); setFlags(u, f); const until = addGift(u, WEEK); await db().putUser(u);
+  await tg("sendMessage", { chat_id: u.id, parse_mode: "HTML", text: T.refWelcome(ru(until), isFree()) });
+}
+async function refCredit(u) { // неделя тому, кто пригласил
   if (!u || !u.ref || +u.ref === +u.id || flags(u).has("rf")) return;
   const f = flags(u); f.add("rf"); setFlags(u, f); await db().putUser(u);
   const inv = await db().getUser(+u.ref); if (!inv || !inv.consent) return;
-  const base = [inv.paid || "", mskDay(), addDays(FREE_UNTIL(), -1)].sort().pop();
-  inv.paid = addDays(base, 30); inv.refn = (+inv.refn || 0) + 1; setFlags(inv, [...flags(inv)].filter(x => !x.startsWith("p")));
+  const until = addGift(inv, WEEK); inv.refn = (+inv.refn || 0) + 1;
+  const nm = (u.name || "").split(" ")[0] || "Друг"; inv.refs = [nm].concat(String(inv.refs || "").split(",").filter(Boolean)).slice(0, 30).join(",");
   await db().putUser(inv);
-  await tg("sendMessage", { chat_id: inv.id, parse_mode: "HTML", text: T.refGot(esc((u.name || "").split(" ")[0] || "Друг"), ru(inv.paid), isFree()) });
-  if (ADMIN()) await tg("sendMessage", { chat_id: ADMIN(), text: `🎁 ${inv.name} привёл(а) ${u.name}. +1 месяц, доступ до ${ru(inv.paid)}` });
+  await tg("sendMessage", { chat_id: inv.id, parse_mode: "HTML", text: T.refGot(esc(nm), ru(until), isFree()) });
+  if (ADMIN()) await tg("sendMessage", { chat_id: ADMIN(), text: `🎁 ${inv.name} привёл(а) ${u.name}. +1 неделя, клуб открыт до ${ru(until)}` });
 }
+async function refOnJoin(u) { await refFriend(u); if (isFree()) await refCredit(u); }
 
 // ---------- итоги челленджа: общий пост с цифрами и топом + личный итог каждому ----------
 async function challengeReport(chId) {
