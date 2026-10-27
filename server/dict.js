@@ -71,9 +71,11 @@ function parseSeg(T,base,defDate){const rm=new Set();const W=i=>T[i]?T[i].w:"";l
   if(rep==="weekly"&&!dows.length)dows=[parseKey(date||defDate).getUTCDay()];
   if(rep==="monthly"&&!dom)dom=parseKey(date||defDate).getUTCDate();
   let words=T.filter((_,i)=>!rm.has(i)).map(t=>t.o);const low=s=>(s||"").toLowerCase().replace(/ё/g,"е");
-  const LEAD=new Set(["и","а","еще","потом","также","надо","нужно","обязательно","мне","пожалуйста"]);
+  const LEAD=new Set(["и","а","еще","потом","также","надо","нужно","обязательно","мне","пожалуйста","что","чтобы","напомни","напомню","напомните","запиши","добавь","я","мы"]);
   for(let g=0;g<10&&words.length;g++){const f=low(words[0]);if(LEAD.has(f)){words.shift();continue}if(f==="у"&&low(words[1])==="меня"){words.splice(0,2);continue}if(f==="не"&&/^забыть/.test(low(words[1]))){words.splice(0,2);continue}break}
   while(words.length&&/^(в|во|на|по|к|с|до|и|а)$/.test(low(words[words.length-1])))words.pop();
+  if(words.length>=2&&/^(сходить|пойти|поехать|съездить|идти|ехать|зайти)$/.test(low(words[0]))&&/^(к|ко)$/.test(low(words[1])))words.shift();
+  if(words.length===2&&/^(к|ко)$/.test(low(words[0]))&&/^[а-яё-]{4,}[ую]$/i.test(words[1])){const w=words[1];words=[/ю$/i.test(w)?w.slice(0,-1)+"ь":w.slice(0,-1)]}
   let t=words.join(" ").trim();if(!t)return null;t=t[0].toUpperCase()+t.slice(1);
   return {t:t.slice(0,120),tm,rep,dows,dom,date,from:rep?(date||base):null}}
 
@@ -93,9 +95,11 @@ function parseMoney(text){const out=[];
 const REMW=[[1440,/(за|на) (один |1 )?день|накануне|за сутки/],[60,/(за|на) (один |1 )?час/],[15,/(за|на) (15|пятнадцать) минут/],[30,/(за|на) (30|полчаса|тридцать минут)/]];
 function remOf(text){const low=String(text).toLowerCase();if(!/напомн/.test(low))return 0;for(const [m,r] of REMW)if(r.test(low))return m===30?60:m;return 60}
 // Целиком: деньги отдельно, дела отдельно, служебные слова («добавь в дела», «напомни за час») убираем
-function cleanTask(t){return t.replace(/,?\s*(и\s+)?(добавь|запиши|поставь|внеси)(\s+это)?(\s+мне)?\s+в\s+(дела|список|задачи|планы)/gi,"").replace(/,?\s*(и\s+)?напомни(ть)?(\s+мне)?(\s+об этом)?(\s+(за|на)\s+(\d+\s+)?(час|день|сутки|минут[ау]?|полчаса|15 минут|пятнадцать минут))?/gi,"").replace(/\s+/g," ").trim()}
+function cleanTask(t){return t.replace(/,?\s*(и\s+)?(добавь|запиши|поставь|внеси)(\s+это)?(\s+мне)?\s+в\s+(дела|список|задачи|планы|календарь)/gi,"")
+  .replace(/,?\s*(и\s+)?напомн(и|ю|ите|ить)(\s+мне)?(\s+об этом)?(\s+(за|на)\s+((\d+|один|одну|два|две|три)\s+)?(часа?|день|дня|сутки|минут[ау]?|полчаса|пятнадцать минут))?(\s*,?\s*(что|чтобы|о том,? что))?/gi,"")
+  .replace(/(^|[\s,])(накануне|за сутки)(?=$|[\s,.])/gi,"$1").replace(/\s+/g," ").replace(/^[\s,]+|[\s,]+$/g,"").trim()}
 function parseAll(text,today){const money=[],tasks=[];const rem=remOf(text);let rest=[];
   for(const sent of String(text||"").split(/[\n;!?]+|\.(?=\s|$)/)){if(!sent.trim())continue;const m=parseMoney(sent);if(m.length)money.push(...m);else rest.push(cleanTask(sent))}
-  const t=rest.filter(Boolean).join(". ");if(t)for(const x of parseDictation(t,today,today))if(x.t&&x.t.length>1){if(x.tm&&!/утр|ночи|\d:\d/.test(t.toLowerCase())){const h=+x.tm.slice(0,2);if(h>=1&&h<=7)x.tm=String(h+12).padStart(2,"0")+x.tm.slice(2)}tasks.push(Object.assign(x,{rem:x.tm&&!x.rep?rem:0}))}
+  const t=rest.filter(Boolean).join(". ");if(t)for(const x of parseDictation(t,today,today))if(x.t&&x.t.length>1){if(x.tm&&!/утр|ночи|\d:\d/.test(t.toLowerCase())){const h=+x.tm.slice(0,2);if(h>=1&&h<=7)x.tm=String(h+12).padStart(2,"0")+x.tm.slice(2)}tasks.push(Object.assign(x,{rem:!x.rep?rem:0}))}
   return {money,tasks}}
 module.exports={parseDictation,parseMoney,remOf,parseAll};

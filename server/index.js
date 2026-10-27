@@ -145,10 +145,10 @@ async function onProdamus(raw, headers, ctype) {
 // ---------- keyboards ----------
 const btnApp = (t = "✨ Открыть приложение") => ({ text: t, web_app: { url: APP_URL() } });
 const kbConsent = () => ({ inline_keyboard: [[{ text: T.consentBtn, callback_data: "agree" }]] });
-const kbMain = () => ({ inline_keyboard: [[btnApp()], [{ text: "🖤 Что внутри клуба", callback_data: "inside" }], isFree() ? [{ text: "❓ Вопросы", callback_data: "faq" }] : [{ text: "💳 Тарифы", callback_data: "plans" }, { text: "❓ Вопросы", callback_data: "faq" }]] });
+const kbMain = () => ({ inline_keyboard: [[btnApp()], [{ text: "🖤 Что внутри клуба", callback_data: "inside" }], [{ text: "🎁 Пригласить друга", callback_data: "invite" }], isFree() ? [{ text: "❓ Вопросы", callback_data: "faq" }] : [{ text: "💳 Тарифы", callback_data: "plans" }, { text: "❓ Вопросы", callback_data: "faq" }]] });
 // кнопки админа (внизу экрана вместо команд)
-const AB = { stats: "📊 Статистика", users: "👥 Участники", club: "🏆 Таблица челленджа", winner: "🎁 Выбрать победителя", votes: "🗳 Голосование", bc: "📣 Рассылка", posts: "🗓 Анонсы" };
-const kbAdmin = () => ({ keyboard: [[{ text: AB.stats }, { text: AB.users }], [{ text: AB.club }, { text: AB.winner }], [{ text: AB.votes }, { text: AB.posts }], [{ text: AB.bc }]], resize_keyboard: true, is_persistent: true });
+const AB = { stats: "📊 Статистика", users: "👥 Участники", club: "🏆 Таблица челленджа", winner: "🎁 Выбрать победителя", votes: "🗳 Голосование", bc: "📣 Рассылка", posts: "🗓 Анонсы", fb: "💬 Отзывы" };
+const kbAdmin = () => ({ keyboard: [[{ text: AB.stats }, { text: AB.users }], [{ text: AB.club }, { text: AB.winner }], [{ text: AB.votes }, { text: AB.posts }], [{ text: AB.bc }, { text: AB.fb }]], resize_keyboard: true, is_persistent: true });
 const kbBack = () => ({ inline_keyboard: [[btnApp()], [{ text: "⬅️ Назад", callback_data: "back" }]] });
 const kbPlans = () => ({ inline_keyboard: [...(isFree() ? [] : [[{ text: "💳 Оплатить", callback_data: "pay" }]]), [btnApp()], [{ text: "⬅️ Назад", callback_data: "back" }]] });
 const kbPayLinks = u => { const rows = T.PLANS.map(p => { const url = payLink(u, p); return url ? [{ text: `${p.e} ${p.t} — ${p.price.toLocaleString("ru-RU")} ₽`, url }] : null; }).filter(Boolean); return rows.length ? { inline_keyboard: rows } : null; };
@@ -184,6 +184,7 @@ async function onJoin(j) {
   const uid = +j.from.id; const u = await db().getUser(uid); const a = access(u);
   if (u && u.consent && a.ok && isTester(uid)) {
     await tg("approveChatJoinRequest", { chat_id: j.chat.id, user_id: uid }); u.mem = String(Date.now()); const f = flags(u); f.delete("kick"); setFlags(u, f); await db().putUser(u);
+    await refCredit(u);
     return tg("sendMessage", { chat_id: uid, text: T.clubIn, reply_markup: { inline_keyboard: [[btnApp()]] } });
   }
   await tg("declineChatJoinRequest", { chat_id: j.chat.id, user_id: uid });
@@ -205,8 +206,50 @@ async function sendWelcome(chat) {
   if (!r.ok) await tg("sendMessage", { chat_id: chat, text: T.welcome(freeLabel()), parse_mode: "HTML", reply_markup: kbMain() });
 }
 const accLabel = a => a.kind === "paid" ? "оплачено до " + ru(a.until) : a.kind === "free" ? "бесплатный месяц" : a.kind === "trial" ? "пробный" : a.kind === "expired" ? "пробный закончился" : a.kind === "admin" ? "админ" : "не открывал(а) приложение";
+// ---------- анонсы: управление прямо в боте ----------
+async function postsSave(list) { await db().kvPut(0, { posts: JSON.stringify(list) }); const cfg = await clubFull(); cfg.posts = list; }
+const postHead = p => `🗓 <b>${ru(p.date)}, ${p.time || "12:00"}</b>${p.vote ? " · с голосованием" : ""}${p.report ? " · с итогами челленджа" : ""}`;
+const postBody = p => p.report && !p.text ? "<i>Здесь будут цифры челленджа и топ участников — бот посчитает сам.</i>" : String(p.text || "").replace("{winner}", "«имя победителя»");
+const kbPost = p => ({ inline_keyboard: [[...(p.report ? [] : [{ text: "✏️ Текст", callback_data: "pe|" + p.id }]), { text: "📅 Дата", callback_data: "pd|" + p.id }, { text: "🗑 Удалить", callback_data: "px|" + p.id }]] });
+async function admState(v) { if (v === undefined) { try { return JSON.parse((await db().kvAll(0)).adm_state || "null"); } catch (e) { return null; } } if (v === null) return db().kvPut(0, {}, ["adm_state"]); return db().kvPut(0, { adm_state: JSON.stringify(v) }); }
+function parsePostDate(t) {
+  const low = t.toLowerCase().replace(/ё/g, "е"); let d = null, m;
+  if ((m = low.match(/(\d{1,2})[.\/](\d{1,2})(?:[.\/](\d{2,4}))?(?!\d)/)) && !/:/.test(low.slice(m.index + m[0].length, m.index + m[0].length + 1))) d = [+m[1], +m[2], m[3] ? (+m[3] < 100 ? 2000 + +m[3] : +m[3]) : null];
+  else if ((m = low.match(/(\d{1,2})\s+(января|февраля|марта|апреля|мая|июня|июля|августа|сентября|октября|ноября|декабря)/))) d = [+m[1], MONTHS.indexOf(m[2]) + 1, null];
+  if (!d || d[1] < 1 || d[1] > 12 || d[0] < 1 || d[0] > 31) return null;
+  const tm = (low.replace(m[0], "").match(/(\d{1,2})[:.](\d{2})/) || []); const time = tm[0] ? `${String(+tm[1]).padStart(2, "0")}:${tm[2]}` : "12:00";
+  const y = d[2] || +mskDay().slice(0, 4); let iso = `${y}-${String(d[1]).padStart(2, "0")}-${String(d[0]).padStart(2, "0")}`; if (!d[2] && iso < mskDay()) iso = `${y + 1}${iso.slice(4)}`;
+  return { date: iso, time };
+}
+async function adminText(text, chat) { // ответ админа на вопрос «пришли новый текст / дату»
+  const st = await admState(); if (!st) return null;
+  const cfg = await clubFull(); const list = (cfg.posts || []).slice();
+  if (st.mode === "edit") { const p = list.find(x => x.id === st.id); if (!p) { await admState(null); return tg("sendMessage", { chat_id: chat, text: "Не нашла этот анонс." }); }
+    p.text = esc(text); await postsSave(list); await admState(null); return tg("sendMessage", { chat_id: chat, parse_mode: "HTML", text: "✅ Текст обновлён:\n\n" + postHead(p) + "\n\n" + postBody(p), reply_markup: kbPost(p) }); }
+  if (st.mode === "new") { await admState({ mode: "newdate", text: esc(text) }); return tg("sendMessage", { chat_id: chat, text: "Когда отправить? Напиши дату и время, например: 28.11 19:00", reply_markup: { inline_keyboard: [[{ text: "Отмена", callback_data: "pcancel" }]] } }); }
+  if (st.mode === "date" || st.mode === "newdate") {
+    const dt = parsePostDate(text); if (!dt) return tg("sendMessage", { chat_id: chat, text: "Не поняла дату. Напиши так: 28.11 19:00 или 28 ноября 19:00" });
+    let p; if (st.mode === "date") { p = list.find(x => x.id === st.id); if (!p) { await admState(null); return tg("sendMessage", { chat_id: chat, text: "Не нашла этот анонс." }); } Object.assign(p, dt); }
+    else { p = Object.assign({ id: "p-" + Date.now().toString(36), text: st.text }, dt); list.push(p); }
+    list.sort((a, b) => (a.date + (a.time || "")) < (b.date + (b.time || "")) ? -1 : 1);
+    await postsSave(list); await admState(null);
+    return tg("sendMessage", { chat_id: chat, parse_mode: "HTML", text: `✅ ${st.mode === "date" ? "Перенесла" : "Запланировала"}:\n\n${postHead(p)}\n\n${postBody(p)}`, reply_markup: kbPost(p) });
+  }
+  await admState(null); return null;
+}
+async function postAction(d, chat, m) {
+  const [act, id] = d.split("|"); const cfg = await clubFull(); const list = (cfg.posts || []).slice(); const p = list.find(x => x.id === id);
+  const cancel = { inline_keyboard: [[{ text: "Отмена", callback_data: "pcancel" }]] };
+  if (act === "pcancel") { await admState(null); return tg("sendMessage", { chat_id: chat, text: "Отменила." }); }
+  if (act === "pn") { await admState({ mode: "new" }); return tg("sendMessage", { chat_id: chat, text: "Пришли текст нового анонса. Его получат все участники.", reply_markup: cancel }); }
+  if (!p) return tg("sendMessage", { chat_id: chat, text: "Этот анонс уже удалён или отправлен." });
+  if (act === "pe") { await admState({ mode: "edit", id }); return tg("sendMessage", { chat_id: chat, text: "Пришли новый текст для этого анонса." + (/\{winner\}/.test(p.text) ? " Чтобы бот подставил имя победителя, напиши в тексте {winner}." : ""), reply_markup: cancel }); }
+  if (act === "pd") { await admState({ mode: "date", id }); return tg("sendMessage", { chat_id: chat, text: "Новая дата и время? Например: 25.11 19:00", reply_markup: cancel }); }
+  if (act === "px") return tg("sendMessage", { chat_id: chat, text: `Удалить анонс на ${ru(p.date)}?`, reply_markup: { inline_keyboard: [[{ text: "🗑 Да, удалить", callback_data: "pxy|" + id }, { text: "Нет", callback_data: "pcancel" }]] } });
+  if (act === "pxy") { await postsSave(list.filter(x => x.id !== id)); if (m) await tg("editMessageReplyMarkup", { chat_id: chat, message_id: m.message_id, reply_markup: { inline_keyboard: [] } }); return tg("sendMessage", { chat_id: chat, text: "Удалила ✅" }); }
+}
 async function adminCmd(text, chat, u) {
-  const map = { [AB.stats]: "/stats", [AB.users]: "/users", [AB.club]: "/club", [AB.winner]: "/winner", [AB.votes]: "/votes", [AB.posts]: "/posts", [AB.bc]: "/bc" };
+  const map = { [AB.stats]: "/stats", [AB.users]: "/users", [AB.club]: "/club", [AB.winner]: "/winner", [AB.votes]: "/votes", [AB.posts]: "/posts", [AB.bc]: "/bc", [AB.fb]: "/feedback" };
   if (map[text.trim()]) text = map[text.trim()];
   const [cmd, ...rest] = text.trim().split(/\s+/);
   if (cmd === "/bc") { const f = flags(u); f.add("bc"); setFlags(u, f); await db().putUser(u); return tg("sendMessage", { chat_id: chat, text: T.bcAsk, reply_markup: { inline_keyboard: [[{ text: "Отмена", callback_data: "bcno" }]] } }); }
@@ -219,9 +262,9 @@ async function adminCmd(text, chat, u) {
   if (cmd === "/posts") {
     const cfg = await clubFull(); const today = mskDay();
     const ps = (cfg.posts || []).filter(p => p.date >= addDays(today, -1)).sort((a, b) => (a.date + a.time) < (b.date + b.time) ? -1 : 1);
-    if (!ps.length) return tg("sendMessage", { chat_id: chat, text: "Запланированных анонсов нет." });
-    for (const p of ps.slice(0, 6)) { await tg("sendMessage", { chat_id: chat, parse_mode: "HTML", text: `🗓 <b>${ru(p.date)}, ${p.time || "12:00"}</b>${p.vote ? " · с голосованием" : ""}\n\n${p.text}`.replace("{winner}", "«имя победителя»") }); }
-    return tg("sendMessage", { chat_id: chat, text: "Это анонсы, которые уйдут всем участникам. Поменять текст — напиши мне в Claude." });
+    if (!ps.length) return tg("sendMessage", { chat_id: chat, text: "Запланированных анонсов нет.", reply_markup: { inline_keyboard: [[{ text: "➕ Новый анонс", callback_data: "pn" }]] } });
+    for (const p of ps.slice(0, 10)) await tg("sendMessage", { chat_id: chat, parse_mode: "HTML", text: postHead(p) + "\n\n" + postBody(p), reply_markup: kbPost(p) });
+    return tg("sendMessage", { chat_id: chat, text: "Это анонсы, которые уйдут всем участникам. Меняй прямо здесь кнопками под каждым.", reply_markup: { inline_keyboard: [[{ text: "➕ Новый анонс", callback_data: "pn" }]] } });
   }
   if (cmd === "/stats") {
     const us = await db().listUsers(); const now = Date.now(), today = mskDay();
@@ -279,8 +322,9 @@ async function adminCmd(text, chat, u) {
     await db().kvPut(0, { ["winner_" + c.id]: JSON.stringify({ uid: w.uid, name: w.name, at: Date.now() }) });
     return tg("sendMessage", { chat_id: chat, parse_mode: "HTML", text: `🎁 Дошли до конца: ${fin.length}\n\n<b>Победитель:</b> ${esc(w.name)}${wu && wu.username ? " @" + esc(wu.username) : ""}\nid: <code>${w.uid}</code>\n\nЕго имя появится в анонсе итогов. Написать победителю — ответь на это сообщение.`, reply_markup: { inline_keyboard: [[{ text: "🔄 Выбрать заново", callback_data: "reroll" }]] } });
   }
+  if (cmd === "/feedback") return fbSummary(chat);
   if (cmd === "/admin") {
-    return tg("sendMessage", { chat_id: chat, reply_markup: kbAdmin(), text: "Команды админа (всё то же есть кнопками внизу):\n/stats — цифры клуба\n/users — последние 15 участников\n/club — таблица челленджа\n/winner — случайный победитель среди прошедших все дни\n/give @nick 30 — открыть доступ на 30 дней\n/reply ID текст — ответить участнику\n/broadcast текст — рассылка всем\n\nМожно и проще: ответь (свайп влево) на пересланное сообщение — ответ уйдёт человеку." });
+    return tg("sendMessage", { chat_id: chat, reply_markup: kbAdmin(), text: "Команды админа (всё то же есть кнопками внизу):\n/stats — цифры клуба\n/users — последние 15 участников\n/club — таблица челленджа\n/winner — случайный победитель среди прошедших все дни\n/give @nick 30 — открыть доступ на 30 дней\n/reply ID текст — ответить участнику\n/broadcast текст — рассылка всем\n/posts — анонсы: изменить, перенести, удалить, добавить\n/feedback — отзывы участников за неделю\n/test — проверить, приходят ли напоминания\n\nМожно и проще: ответь (свайп влево) на пересланное сообщение — ответ уйдёт человеку." });
   }
   return null;
 }
@@ -288,7 +332,20 @@ async function adminCmd(text, chat, u) {
 const CAT_L = { food: "🍽 Еда", beauty: "💄 Красота", clothes: "👗 Одежда", rent: "🔑 Жильё", home: "🏠 Дом", transport: "🚕 Транспорт", fun: "🎉 Развлечения", health: "💊 Здоровье", gifts: "🎁 Подарки", study: "📚 Обучение", other: "✨ Другое" };
 const REP_L = { daily: "каждый день", weekdays: "по будням", weekly: "каждую неделю", monthly: "каждый месяц" };
 const WDS = ["вс", "пн", "вт", "ср", "чт", "пт", "сб"];
-const REM_T = { 15: "за 15 минут", 60: "за час", 1440: "за день" };
+const REM_T = { 15: "за 15 минут", 60: "за час", 1440: "накануне в 10:00" };
+// «за день» — всегда накануне в 10:00; дело без времени с напоминанием — в 10:00 в этот день
+function remAt(date, tm, rem) {
+  if (!rem) return 0;
+  if (rem === 1440) return Date.parse(`${addDays(date, -1)}T10:00:00+03:00`);
+  if (!tm) return Date.parse(`${date}T10:00:00+03:00`);
+  return Date.parse(`${date}T${tm}:00+03:00`) - rem * 60000;
+}
+function remText(x) {
+  if (x.rem === 1440) return `🔔 Завтра: ${x.t}${x.tm ? " — в " + x.tm : ""}`;
+  if (!x.tm) return `🔔 Сегодня: ${x.t}`;
+  return `🔔 ${{ 15: "Через 15 минут", 60: "Через час" }[x.rem] || "Скоро"}: ${x.t} — в ${x.tm}`;
+}
+const dLabel = d => d === mskDay() ? "сегодня" : d === addDays(mskDay(), 1) ? "завтра" : d.slice(0, 4) === mskDay().slice(0, 4) ? ruShort(d) : ru(d);
 async function stt(fileId) {
   const f = await tg("getFile", { file_id: fileId }); if (!f.ok) throw new Error("getFile");
   const audio = Buffer.from(await (await fetch(`${TG_BASE()}/file/bot${TOKEN()}/${f.result.file_path}`)).arrayBuffer());
@@ -298,7 +355,7 @@ async function stt(fileId) {
 }
 function dictPreview(p) {
   const lines = [];
-  p.tasks.forEach(x => lines.push(x.rep ? `🔁 ${esc(x.t)}${x.tm ? " · " + x.tm : ""} — ${x.rep === "weekly" && x.dows.length ? x.dows.map(d => WDS[d]).join(", ") : REP_L[x.rep] || ""}` : `📅 ${esc(x.t)} — ${x.date === mskDay() ? "сегодня" : x.date === addDays(mskDay(), 1) ? "завтра" : ruShort(x.date)}${x.tm ? " в " + x.tm : ""}${x.rem ? " · 🔔 " + REM_T[x.rem] : ""}`));
+  p.tasks.forEach(x => lines.push(x.rep ? `🔁 ${esc(x.t)}${x.tm ? " · " + x.tm : ""} — ${x.rep === "weekly" && x.dows.length ? x.dows.map(d => WDS[d]).join(", ") : REP_L[x.rep] || ""}` : `📅 ${esc(x.t)} — ${dLabel(x.date)}${x.tm ? " в " + x.tm : ""}${x.rem ? " · 🔔 " + (x.rem === 1440 ? "напомню накануне в 10:00" : x.tm ? "напомню " + REM_T[x.rem] : "напомню в этот день в 10:00") : ""}`));
   p.money.forEach(x => lines.push(`💸 ${x.amount.toLocaleString("ru-RU")} ₽ — ${CAT_L[x.cat]}${x.note ? " · " + esc(x.note) : ""}`));
   return lines.join("\n");
 }
@@ -306,7 +363,7 @@ async function dictStart(chat, u, text, heard) {
   const p = parseAll(text, mskDay());
   if (!p.tasks.length && !p.money.length) return tg("sendMessage", { chat_id: chat, parse_mode: "HTML", text: `${heard ? `🎤 Услышала: «${esc(text)}»\n\n` : ""}Не нашла здесь дел или трат. Скажи, например: «завтра в 6 парикмахер, напомни за час» или «потратила 500 на такси».` });
   await db().kvPut(u.id, { _dict: JSON.stringify(p) });
-  return tg("sendMessage", { chat_id: chat, parse_mode: "HTML", text: `${heard ? `🎤 Услышала: «${esc(text)}»\n\n` : ""}Записать?\n\n${dictPreview(p)}`, reply_markup: { inline_keyboard: [[{ text: "✅ Записать", callback_data: "dadd" }, { text: "✖️ Не надо", callback_data: "dno" }]] } });
+  return tg("sendMessage", { chat_id: chat, parse_mode: "HTML", text: `${heard ? `🎤 Услышала: «${esc(text)}»\n\n` : ""}Записать?\n\n${dictPreview(p)}`, reply_markup: { inline_keyboard: [[{ text: "✅ Записать", callback_data: "dadd" }], [{ text: "✏️ Изменить", callback_data: "dfix" }, { text: "🗑 Удалить", callback_data: "dno" }]] } });
 }
 function bigGet(kv, name) { if (kv[name + "__n"]) { let s = ""; for (let i = 0; i < +kv[name + "__n"]; i++) s += kv[`${name}__${i}`] || ""; try { return JSON.parse(s); } catch (e) { return null; } } if (kv[name]) { try { return JSON.parse(kv[name]); } catch (e) { return null; } } return null; }
 function bigPut(kv, name, val, put, del) { const str = JSON.stringify(val); const parts = []; for (let i = 0; i < str.length; i += 3800) parts.push(str.slice(i, i + 3800)); if (!parts.length) parts.push("null");
@@ -319,7 +376,7 @@ async function dictApply(u) {
   if (recs.length) { const rec = bigGet(kv, "rec") || []; recs.forEach(x => rec.push({ id: "v" + crypto.randomBytes(4).toString("hex"), t: x.t, tm: x.tm || "", rep: x.rep, dows: x.dows || [], dom: x.dom || null, from: x.from || today })); bigPut(kv, "rec", rec, put, del); nT += recs.length; }
   for (const x of p.tasks.filter(x => !x.rep)) {
     const d = dayOf(x.date || today); d.tasks = (d.tasks || []).concat(Object.assign({ t: x.t, d: false, tm: x.tm || "" }, x.rem ? { rem: x.rem } : {})); nT++;
-    if (x.tm && x.rem && db().remAdd) { const at = Date.parse(`${x.date || today}T${x.tm}:00+03:00`) - x.rem * 60000; if (at > Date.now()) await db().remAdd(u.id, { id: `b${(x.date || today).replace(/-/g, "")}${crypto.randomBytes(3).toString("hex")}`, at, text: `🔔 ${{ 15: "Через 15 минут", 60: "Через час", 1440: "Завтра" }[x.rem] || "Скоро"}: ${x.t} — в ${x.tm}` }); }
+    if (x.rem && db().remAdd) { const at = remAt(x.date || today, x.tm, x.rem); if (at > Date.now()) await db().remAdd(u.id, { id: `b${(x.date || today).replace(/-/g, "")}${crypto.randomBytes(3).toString("hex")}`, at, text: remText(x) }); }
   }
   for (const x of p.money) { const d = dayOf(today); d.exp = (d.exp || []).concat([[x.amount, x.cat, x.note || ""]]); nM++; }
   for (const [k, d] of Object.entries(days)) put["d_" + k] = JSON.stringify(d);
@@ -333,9 +390,18 @@ async function onMessage(m) {
   if (text === "/myid") return tg("sendMessage", { chat_id: chat, text: `Твой id: ${m.from.id}` });
   if (!isTester(m.from.id)) return tg("sendMessage", { chat_id: chat, text: T.soon });
   const u = await touch(m.from); const isAdmin = +m.from.id === ADMIN();
+  const refM = text.match(/^\/start ref_(\d+)/); if (refM && !u.ref && !u.consent && +refM[1] !== +u.id) { u.ref = +refM[1]; await db().putUser(u); }
   if (!u.consent) { if (text.startsWith("/start")) return sendConsent(chat); return tg("sendMessage", { chat_id: chat, text: T.consentNeed, reply_markup: kbConsent() }); }
   if (text.startsWith("/start")) { if (/pay/.test(text)) return sendPay(chat, u); await sendWelcome(chat); if (CLUB_CHAT() && !(await isMember(u))) await sendClubInvite(chat); if (isAdmin) await tg("sendMessage", { chat_id: chat, text: T.adminHi, reply_markup: kbAdmin() }); if (/plans/.test(text)) await tg("sendMessage", { chat_id: chat, text: T.plans(freeLabel()), parse_mode: "HTML", reply_markup: kbPlans() }); return; }
   if (text === "/club") { if (await isMember(u)) return tg("sendMessage", { chat_id: chat, text: T.clubIn, reply_markup: { inline_keyboard: [[btnApp()]] } }); return sendClubInvite(chat); }
+  if (text === "/invite" || text === "/start invite") return sendInvite(chat, u);
+  if (flags(u).has("fbt") && text && !text.startsWith("/")) {
+    const f = flags(u); f.delete("fbt"); setFlags(u, f); await db().putUser(u);
+    const key = `fb_${u.fbwk || weekKey()}_${u.id}`; const sys = await db().kvAll(0); let o = {}; try { o = JSON.parse(sys[key] || "{}"); } catch (e) {}
+    o.t = text.slice(0, 500); o.n = (u.name || "").split(" ")[0]; await db().kvPut(0, { [key]: JSON.stringify(o) });
+    if (ADMIN()) await tg("sendMessage", { chat_id: ADMIN(), parse_mode: "HTML", text: `💬 <b>Отзыв недели</b> от ${esc(u.name)} (${o.s || "—"}/5)\n\n${esc(o.t)}\n\nid: ${u.id}` });
+    return tg("sendMessage", { chat_id: chat, text: T.fbThanks });
+  }
   if (text === "/app") return tg("sendMessage", { chat_id: chat, text: T.openApp, reply_markup: { inline_keyboard: [[btnApp()]] } });
   if (text === "/plans") return tg("sendMessage", { chat_id: chat, text: T.plans(freeLabel()), parse_mode: "HTML", reply_markup: kbPlans() });
   if (text === "/help") return tg("sendMessage", { chat_id: chat, text: T.faq(ADMIN_NICK()), parse_mode: "HTML", disable_web_page_preview: true, reply_markup: kbBack() });
@@ -347,10 +413,21 @@ async function onMessage(m) {
     return dictStart(chat, u, heard, true);
   }
   if (text.startsWith("+") && text.length > 2) return dictStart(chat, u, text.slice(1).trim(), false);
+  if (/^\/(тест|test)$/i.test(text)) {
+    await db().kvPut(0, { ["test_" + u.id]: String(Date.now() + 60e3) });
+    const last = +((await db().kvAll(0)).last_tick || 0), ago = last ? Math.round((Date.now() - last) / 60000) : null;
+    let msg = "⏱ Поставила тестовое напоминание. Оно придёт через 1–2 минуты.";
+    if (ago === null) msg += "\n\n⚠️ Но таймер ещё ни разу не будил бота, поэтому напоминания сейчас не приходят." + (isAdmin ? " Нужно создать триггер-таймер в Yandex Cloud." : " Я уже сообщила Яне.");
+    else if (ago > 10) msg += `\n\n⚠️ Таймер последний раз срабатывал ${ago} мин назад. Похоже, он выключен.`;
+    else if (isAdmin) msg += `\n\nТаймер работает: последний раз ${ago} мин назад ✅`;
+    if (ago === null && !isAdmin && ADMIN()) await tg("sendMessage", { chat_id: ADMIN(), text: "⚠️ Напоминания не уходят: таймер ни разу не запускал бота. Создай триггер-таймер для функции." });
+    return tg("sendMessage", { chat_id: chat, text: msg });
+  }
   if (text === "/remind") { const f = flags(u); f.delete("nocr"); setFlags(u, f); await db().putUser(u); return tg("sendMessage", { chat_id: chat, text: T.chOn }); }
   if (isAdmin) {
     const fwd = (m.forward_origin && m.forward_origin.chat) || m.forward_from_chat;
     if (fwd) return tg("sendMessage", { chat_id: chat, parse_mode: "HTML", text: `ID канала «${esc(fwd.title || "")}»: <code>${fwd.id}</code>\n\nВставь его в переменные функции как CLUB_CHAT_ID и добавь меня (бота) админом канала с правом «Добавлять участников».` });
+    if (text && !text.startsWith("/") && !Object.values(AB).includes(text)) { const r = await adminText(text, chat); if (r !== null && r !== undefined) return r; }
     if (flags(u).has("bc") && text && !text.startsWith("/") && !Object.values(AB).includes(text)) {
       const f = flags(u); f.delete("bc"); setFlags(u, f); await db().putUser(u);
       await db().kvPut(0, { bc_draft: text });
@@ -379,6 +456,7 @@ async function onCallback(cq) {
   }
   if (+cq.from.id === ADMIN()) {
     if (d === "reroll") return adminCmd("/winner", chat, u);
+    if (/^(pe|pd|px|pxy|pn|pcancel)(\||$)/.test(d)) return postAction(d, chat, m);
     if (d === "bcno") { const f = flags(u); f.delete("bc"); setFlags(u, f); await db().putUser(u); return tg("sendMessage", { chat_id: chat, text: "Рассылка отменена." }); }
     if (d === "bcyes") {
       const msg = (await db().kvAll(0)).bc_draft; if (!msg) return tg("sendMessage", { chat_id: chat, text: "Черновик не найден, нажми «📣 Рассылка» ещё раз." });
@@ -390,11 +468,23 @@ async function onCallback(cq) {
   if (d === "agree") {
     if (!u.consent) u = await agree(u, cq.from);
     await tg("editMessageReplyMarkup", { chat_id: chat, message_id: m.message_id, reply_markup: { inline_keyboard: [] } });
-    await sendWelcome(chat); return sendClubInvite(chat);
+    await sendWelcome(chat); await sendClubInvite(chat);
+    if (!CLUB_CHAT()) await refCredit(u);
+    return tg("sendMessage", { chat_id: chat, parse_mode: "HTML", text: T.firstDay, reply_markup: { inline_keyboard: [[btnApp("1️⃣ Открыть приложение")]] } });
   }
   if (!u.consent) return sendConsent(chat);
+  if (d.startsWith("fb|")) {
+    const [, wk, n] = d.split("|"); const key = `fb_${wk}_${u.id}`;
+    await db().kvPut(0, { [key]: JSON.stringify({ s: +n, n: (u.name || "").split(" ")[0] }) });
+    const f = flags(u); f.add("fbt"); setFlags(u, f); u.fbwk = wk; await db().putUser(u);
+    await tg("editMessageReplyMarkup", { chat_id: chat, message_id: m.message_id, reply_markup: { inline_keyboard: [] } });
+    return tg("sendMessage", { chat_id: chat, text: T.fbMore(+n), reply_markup: { inline_keyboard: [[{ text: "Пропустить", callback_data: "fbskip" }]] } });
+  }
+  if (d === "fbskip") { const f = flags(u); f.delete("fbt"); setFlags(u, f); await db().putUser(u); await tg("editMessageReplyMarkup", { chat_id: chat, message_id: m.message_id, reply_markup: { inline_keyboard: [] } }); return tg("sendMessage", { chat_id: chat, text: T.fbThanks }); }
+  if (d === "invite") return sendInvite(chat, u);
   if (d === "dadd") { const r = await dictApply(u); await tg("editMessageReplyMarkup", { chat_id: chat, message_id: m.message_id, reply_markup: { inline_keyboard: [] } }); if (!r) return tg("sendMessage", { chat_id: chat, text: "Это уже записано или устарело. Надиктуй ещё раз 🎤" }); return tg("sendMessage", { chat_id: chat, text: `Записала ✓ ${[r.nT ? `дел: ${r.nT}` : "", r.nM ? `трат: ${r.nM}` : ""].filter(Boolean).join(", ")}`, reply_markup: { inline_keyboard: [[btnApp("Открыть приложение")]] } }); }
-  if (d === "dno") { await db().kvPut(u.id, {}, ["_dict"]); return tg("editMessageReplyMarkup", { chat_id: chat, message_id: m.message_id, reply_markup: { inline_keyboard: [] } }); }
+  if (d === "dno") { await db().kvPut(u.id, {}, ["_dict"]); await tg("editMessageReplyMarkup", { chat_id: chat, message_id: m.message_id, reply_markup: { inline_keyboard: [] } }); return tg("sendMessage", { chat_id: chat, text: "Удалила, ничего не записываю." }); }
+  if (d === "dfix") { await db().kvPut(u.id, {}, ["_dict"]); await tg("editMessageReplyMarkup", { chat_id: chat, message_id: m.message_id, reply_markup: { inline_keyboard: [] } }); return tg("sendMessage", { chat_id: chat, text: "Скажи или напиши ещё раз, как правильно. Например: «21 ноября стоматолог в 15:00, напомни за день» 🎤" }); }
   if (d === "delyes") { await db().deleteUser(u.id); await tg("editMessageReplyMarkup", { chat_id: chat, message_id: m.message_id, reply_markup: { inline_keyboard: [] } }); return tg("sendMessage", { chat_id: chat, text: T.delDone }); }
   if (d === "delno") return tg("editMessageText", { chat_id: chat, message_id: m.message_id, text: "Хорошо, ничего не удаляю 🖤" });
   if (d === "choff") { const f = flags(u); f.add("nocr"); setFlags(u, f); await db().putUser(u); return tg("sendMessage", { chat_id: chat, text: T.chOff }); }
@@ -426,7 +516,7 @@ async function api(action, body) {
     if (u.consent && !u.trial && +u.id !== ADMIN()) { u.trial = String(Date.now()); await db().putUser(u); }
     const acc = access(u);
     if (u.consent && acc.ok && CLUB_CHAT() && !(await isMember(u))) return [200, { ...acc, ok: false, kind: "club", clubLink: await clubLink(), consent: true, docs: T.DOCS, bot: env("BOT_USERNAME") }];
-    return [200, { ...acc, consent: !!u.consent, docs: T.DOCS, freeUntil: isFree() ? FREE_UNTIL() : "", trialDays: TRIAL_DAYS(), admin: +u.id === ADMIN(), bot: env("BOT_USERNAME"), plans: T.PLANS.map(p => ({ id: p.id, t: p.t, e: p.e, price: p.price, note: p.note || "", url: isFree() ? null : payLink(u, p) })) }];
+    return [200, { ...acc, consent: !!u.consent, docs: T.DOCS, freeUntil: isFree() ? FREE_UNTIL() : "", trialDays: TRIAL_DAYS(), admin: +u.id === ADMIN(), bot: env("BOT_USERNAME"), joined: +u.trial || +u.created || 0, refn: +u.refn || 0, ref: refLink(u), plans: T.PLANS.map(p => ({ id: p.id, t: p.t, e: p.e, price: p.price, note: p.note || "", url: isFree() ? null : payLink(u, p) })) }];
   }
   if (!u.consent) return [403, { error: "consent" }];
   if (action === "kv") {
@@ -487,7 +577,8 @@ async function broadcast(text, kb, opts) {
 let CLUB = null, CLUBF = null, CLUB_AT = 0;
 async function clubFull() {
   if (CLUBF && Date.now() - CLUB_AT < 10 * 60e3) return CLUBF;
-  try { const r = await fetch(APP_URL().replace(/\/?$/, "/") + "club.json?t=" + Date.now()); const j = await r.json(); CLUBF = j || {}; CLUB = (j.challenges || []).filter(c => c && c.id && c.start && c.len); CLUB_AT = Date.now(); }
+  try { const r = await fetch(APP_URL().replace(/\/?$/, "/") + "club.json?t=" + Date.now()); const j = await r.json(); CLUBF = j || {}; CLUB = (j.challenges || []).filter(c => c && c.id && c.start && c.len); CLUB_AT = Date.now();
+    try { const sp = (await db().kvAll(0)).posts; if (sp) CLUBF.posts = JSON.parse(sp); } catch (e) {} } // анонсы, изменённые в боте, важнее файла
   catch (e) { console.log("club.json", e && e.message); CLUBF = CLUBF || { challenges: CLUB || [] }; CLUB = CLUB || []; }
   return CLUBF;
 }
@@ -497,7 +588,8 @@ async function scheduledPosts() {
   const cfg = await clubFull(); const today = mskDay(), t = mskMin(); let sent = 0;
   for (const p of cfg.posts || []) {
     if (!p || !p.id || p.date !== today || t < hm(p.time || "12:00") || t > hm(p.time || "12:00") + 120) continue;
-    let text = String(p.text || "");
+    let text = String(p.text || ""); let rep = null;
+    if (p.report) { rep = await challengeReport(p.report); if (rep) text = rep.text; }
     if (text.includes("{winner}")) {
       const ch = p.ch || ((cfg.challenges || [])[0] || {}).id; const w = (await db().kvAll(0))["winner_" + ch];
       if (!w) { if (await db().once(`postwait|${p.id}|${today}|${Math.floor(t / 30)}`) && ADMIN()) await tg("sendMessage", { chat_id: ADMIN(), text: "⏳ Анонс итогов ждёт победителя — нажми «🎁 Выбрать победителя», и я сразу разошлю.", reply_markup: kbAdmin() }); continue; }
@@ -507,6 +599,7 @@ async function scheduledPosts() {
     if (!(await db().once("post|" + p.id))) continue;
     const kb = p.vote ? { inline_keyboard: p.vote.map((o, i) => [{ text: o, callback_data: `v|${p.id}|${i}` }]) } : { inline_keyboard: [[btnApp()]] };
     const n = await broadcast(text, kb, { parse_mode: "HTML" }); sent += n.ok;
+    if (rep) sent += await personalResults(rep.c, rep.board);
     if (ADMIN()) await tg("sendMessage", { chat_id: ADMIN(), text: `📣 Анонс «${text.slice(0, 40)}…» отправлен: ${n.ok} из ${n.all}` });
   }
   return sent;
@@ -543,6 +636,10 @@ async function taskReminders() {
     if (r.at > now - 20 * 60e3) { const x = await tg("sendMessage", { chat_id: r.uid, text: r.text, reply_markup: { inline_keyboard: [[btnApp("Открыть дела")]] } }); if (x.ok) sent++; await sleep(40); }
   }
   if (due.length) await db().remDel(due);
+  // пробные напоминания по команде /тест
+  const sys = await db().kvAll(0); const tests = Object.entries(sys).filter(([k, v]) => /^test_\d+$/.test(k) && +v <= now);
+  for (const [k] of tests) { const x = await tg("sendMessage", { chat_id: +k.slice(5), text: "🔔 Тестовое напоминание пришло. Напоминания работают ✅" }); if (x.ok) sent++; }
+  if (tests.length) await db().kvPut(0, {}, tests.map(([k]) => k));
   return sent;
 }
 async function accessReminders() {
@@ -565,9 +662,69 @@ async function accessReminders() {
   }
   return sent;
 }
+// ---------- отзыв раз в неделю (тестовый месяц): воскресенье, 18:00 по Москве ----------
+const weekKey = (d = mskDay()) => addDays(d, -((new Date(d + "T12:00:00Z").getUTCDay() + 6) % 7)); // понедельник этой недели
+async function weeklyFeedback() {
+  const today = mskDay();
+  if (!isFree() || new Date(today + "T12:00:00Z").getUTCDay() !== 0 || mskMin() < 18 * 60 || mskMin() > 21 * 60 || today < "2026-11-08") return 0;
+  if (!(await db().once("fb|" + today))) return 0;
+  const wk = weekKey(today); const kb = { inline_keyboard: [[1, 2, 3, 4, 5].map(n => ({ text: String(n), callback_data: `fb|${wk}|${n}` }))] };
+  const us = (await db().listUsers()).filter(u => u.consent && +u.id !== ADMIN()); let ok = 0;
+  for (const u of us) { const r = await tg("sendMessage", { chat_id: u.id, text: T.fbAsk, reply_markup: kb }); if (r.ok) ok++; await sleep(40); }
+  return ok;
+}
+async function fbSummary(chat) {
+  const sys = await db().kvAll(0); const wk = weekKey();
+  const all = Object.entries(sys).filter(([k]) => k.startsWith("fb_")).map(([k, v]) => { try { return Object.assign({ wk: k.split("_")[1] }, JSON.parse(v)); } catch (e) { return null; } }).filter(Boolean);
+  const last = all.filter(x => x.wk === all.map(y => y.wk).sort().pop());
+  if (!last.length) return tg("sendMessage", { chat_id: chat, text: "Отзывов пока нет. Бот спрашивает их по воскресеньям в 18:00, начиная с 8 ноября." });
+  const avg = last.reduce((a, x) => a + (+x.s || 0), 0) / last.length;
+  const txt = last.filter(x => x.t).map(x => `• ${esc(x.n || "")}: ${esc(x.t)} (${x.s})`).join("\n");
+  return tg("sendMessage", { chat_id: chat, parse_mode: "HTML", text: `💬 <b>Отзывы за неделю с ${ruShort(last[0].wk)}</b>\nОтветили: ${last.length}\nСредняя оценка: ${avg.toFixed(1)} из 5\n\n${txt || "Комментариев нет."}` });
+}
+
+// ---------- «Пригласи друга»: друг вступил в клуб → другу-пригласившему +1 месяц ----------
+const refLink = u => env("BOT_USERNAME") ? `https://t.me/${env("BOT_USERNAME")}?start=ref_${u.id}` : "";
+async function sendInvite(chat, u) {
+  const link = refLink(u); if (!link) return tg("sendMessage", { chat_id: chat, text: "Ссылка-приглашение скоро появится 🖤" });
+  const n = +u.refn || 0;
+  return tg("sendMessage", { chat_id: chat, parse_mode: "HTML", disable_web_page_preview: true, text: T.invite(link, n), reply_markup: { inline_keyboard: [[{ text: "📤 Отправить другу", url: `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(T.inviteShare)}` }]] } });
+}
+async function refCredit(u) {
+  if (!u || !u.ref || +u.ref === +u.id || flags(u).has("rf")) return;
+  const f = flags(u); f.add("rf"); setFlags(u, f); await db().putUser(u);
+  const inv = await db().getUser(+u.ref); if (!inv || !inv.consent) return;
+  const base = [inv.paid || "", mskDay(), addDays(FREE_UNTIL(), -1)].sort().pop();
+  inv.paid = addDays(base, 30); inv.refn = (+inv.refn || 0) + 1; setFlags(inv, [...flags(inv)].filter(x => !x.startsWith("p")));
+  await db().putUser(inv);
+  await tg("sendMessage", { chat_id: inv.id, parse_mode: "HTML", text: T.refGot(esc((u.name || "").split(" ")[0] || "Друг"), ru(inv.paid), isFree()) });
+  if (ADMIN()) await tg("sendMessage", { chat_id: ADMIN(), text: `🎁 ${inv.name} привёл(а) ${u.name}. +1 месяц, доступ до ${ru(inv.paid)}` });
+}
+
+// ---------- итоги челленджа: общий пост с цифрами и топом + личный итог каждому ----------
+async function challengeReport(chId) {
+  const cl = await clubConfig(); const c = cl.find(x => x.id === chId) || (await activeChallenge(true)); if (!c) return null;
+  const st = await db().clubStats(c.id, mskDay()); const board = st.board || [];
+  const fin = board.filter(b => b.n >= c.len).length, total = board.reduce((a, b) => a + b.n, 0);
+  const top = board.filter(b => b.n > 0).slice(0, 10).map((b, i) => `${["🥇", "🥈", "🥉"][i] || (i + 1) + "."} ${esc(b.name)} — ${b.n} из ${c.len}`).join("\n");
+  const text = `🏁 <b>Итоги челленджа «${esc(c.title)}»</b>\n\nНачали: ${st.members}\nДошли до конца: ${fin}\nВсего отметок: ${total}\n\n<b>Топ участников</b>\n${top || "—"}\n\nСреди всех, кто прошёл все дни, завтра выберем победителя и подарим подарок 🎁`;
+  return { c, board, text };
+}
+async function personalResults(c, board) {
+  let sent = 0;
+  for (const b of board) {
+    const u = await db().getUser(b.uid); if (!u || !u.consent) continue;
+    let mins = 0, zd = 0; try { const kv = await db().kvAll(u.id); for (let i = 0; i < c.len; i++) { const d = JSON.parse(kv["d_" + addDays(c.start, i)] || "null"); if (d && d.zr) { mins += +d.zrm || 6; zd++; } } } catch (e) {}
+    if (zd < b.n * 0.8) mins = 0;
+    const r = await tg("sendMessage", { chat_id: u.id, parse_mode: "HTML", text: T.myResult(c.title, b.n, c.len, mins), reply_markup: { inline_keyboard: [[btnApp("Открыть мои значки")]] } }); if (r.ok) sent++; await sleep(40);
+  }
+  return sent;
+}
+
 async function reminders() {
   const out = {};
-  for (const [k, f] of [["tasks", taskReminders], ["challenge", challengeReminders], ["posts", scheduledPosts], ["access", accessReminders]]) {
+  try { await db().kvPut(0, { last_tick: String(Date.now()) }); } catch (e) {}
+  for (const [k, f] of [["tasks", taskReminders], ["challenge", challengeReminders], ["posts", scheduledPosts], ["access", accessReminders], ["feedback", weeklyFeedback]]) {
     try { out[k] = await f(); } catch (e) { console.log("reminders", k, e && e.stack || e); out[k] = "error"; }
   }
   return out;
@@ -579,7 +736,7 @@ async function setup(selfUrl, fid) {
   const hook = env("TG_API") && fid ? `${TG_BASE()}/hook/${fid}` : selfUrl + "?a=tg";
   out.hook = hook;
   out.webhook = await tg("setWebhook", { url: hook, secret_token: env("WEBHOOK_SECRET"), allowed_updates: ["message", "callback_query", "chat_join_request"], drop_pending_updates: true });
-  out.commands = await tg("setMyCommands", { commands: [{ command: "start", description: "Начать" }, { command: "app", description: "Открыть приложение" }, ...(isFree() ? [] : [{ command: "plans", description: "Тарифы клуба" }]), { command: "help", description: "Вопросы и поддержка" }, { command: "club", description: "Закрытый клуб" }, { command: "delete", description: "Удалить мои данные" }] });
+  out.commands = await tg("setMyCommands", { commands: [{ command: "start", description: "Начать" }, { command: "app", description: "Открыть приложение" }, ...(isFree() ? [] : [{ command: "plans", description: "Тарифы клуба" }]), { command: "help", description: "Вопросы и поддержка" }, { command: "club", description: "Закрытый клуб" }, { command: "invite", description: "Пригласить друга" }, { command: "test", description: "Проверить напоминания" }, { command: "delete", description: "Удалить мои данные" }] });
   out.menu = await tg("setChatMenuButton", { menu_button: { type: "web_app", text: "Открыть клуб", web_app: { url: APP_URL() } } });
   if (ADMIN()) out.adminCmds = await tg("setMyCommands", { scope: { type: "chat", chat_id: ADMIN() }, commands: [{ command: "start", description: "Начать и показать кнопки админа" }, { command: "admin", description: "Все команды" }] });
   return out;
