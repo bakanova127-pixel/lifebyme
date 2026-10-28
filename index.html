@@ -1338,7 +1338,7 @@ const MONTHS_N=["Январь","Февраль","Март","Апрель","Ма�
 /* значок за каждый челлендж клуба: получаешь, если отметил все дни */
 function chBadges(){const out=[];let y=2026,m=11;const ym=TODAY.slice(0,7);
   for(let i=0;i<12;i++){const key=`${y}-${String(m).padStart(2,"0")}`;const c=(S.club||[]).find(x=>x.start.slice(0,7)===key);
-    const mine=c&&(S.chs||[]).find(x=>x.club===c.id);const done=mine?chProg(mine,c.len).opened:0;
+    const mine=c&&(S.chs||[]).find(x=>x.club===c.id);const pr=mine?chProg(mine,c.len):null;const done=pr&&pr.opened>=pr.need?c.len:pr?pr.opened:0;
     const st=c&&done>=c.len?"on":key<ym||(c&&diffDays(TODAY,c.start)+1>c.len)?"miss":key===ym&&c?"now":"soon";
     out.push({key,month:MONTHS_N[m-1],c,done,st});m++;if(m>12){m=1;y++}}
   return out}
@@ -1361,7 +1361,7 @@ async function clubStats(){if(!API)return;S.clubStat=S.clubStat||{};for(const c 
 function clubBlock(c,mine){const day1=diffDays(TODAY,c.start)+1;const b=el("div",{class:"clubch"},el("span",{class:"eyebrow"},"челлендж клуба"),el("b",{style:"font-size:1.1rem"},clubName(c)));
   if(c.desc)b.append(el("span",{style:"font-size:.92rem"},c.desc));
   b.append(el("span",{class:"muted",style:"font-size:.88rem"},day1<1?`Старт ${fmtDate(c.start)} · ${c.len} ${plural(c.len,"день","дня","дней")}${c.win?` · отмечаемся с ${c.win[0]} до ${c.win[1]} по Москве`:""}`:day1<=c.len?`Идёт: день ${day1} из ${c.len}${c.win?` · с ${c.win[0]} до ${c.win[1]} по Москве`:""}`:`Завершён ${fmtDate(shift(c.start,c.len-1))}`));
-  if(!mine&&day1<=c.len)b.append(el("button",{class:"btn",type:"button",onclick:()=>{setChs((S.chs||[]).concat({id:"club_"+c.id,club:c.id,title:c.title,len:c.len,start:c.start,win:c.win||null,marks:{}}));clubApi("join",{ch:c.id}).then(()=>clubStats());haptic("success");toast("Ты в челлендже клуба! 🌸")}},"Подключиться"));
+  if(!mine&&day1<=c.len)b.append(el("button",{class:"btn",type:"button",onclick:()=>{setChs((S.chs||[]).concat(Object.assign({id:"club_"+c.id,club:c.id,title:c.title,len:c.len,start:c.start,win:c.win||null,marks:{}},TODAY>c.start?{from:TODAY}:{})));clubApi("join",{ch:c.id}).then(()=>clubStats());haptic("success");toast("Ты в челлендже клуба! 🌸")}},"Подключиться"));
   if(mine){const st=(S.clubStat||{})[c.id];const bd=el("div",{class:"clubboard"},el("b",{},"Общая графа клуба"));
     if(st){bd.append(el("span",{},`В челлендже: ${st.members||0} · сегодня отметились ${st.today||0}`));if((st.names||[]).length)bd.append(el("div",{class:"who"},st.names.slice(0,30).map(n=>el("span",{},n))))}
     else bd.append(el("span",{class:"muted"},"Ты в общем зачёте. Здесь будет видно, кто уже отметился сегодня."));
@@ -1863,16 +1863,17 @@ function clubLast(){return (S.club||[]).filter(c=>diffDays(TODAY,c.start)+1>c.le
 function myCh(c){return c?(S.chs||[]).find(x=>x.club===c.id)||null:null}
 function isZr(c){return /зарядк/i.test((c&&(c.title||c.name))||"")}
 /* спасательный круг: один на челлендж — первый пропуск засчитывается сам, лепесток остаётся (бледный) */
-function chProg(ch,len){const end=shift(ch.start,len-1);const last=TODAY>end?end:shift(TODAY,-1);let done=0;const missed=[];
-  for(let i=0;i<len;i++){const k=shift(ch.start,i);if(ch.marks[k]===1)done++;else if(k<=last)missed.push(k)}
-  const buoy=missed[0]||null;return {done,missed,buoy,opened:done+(buoy?1:0),cd:diffDays(TODAY,ch.start)+1,end,today:ch.marks[TODAY]===1}}
+/* вступить можно в любой день: дни до вступления не считаются пропусками, цветок — это лепестки со дня вступления */
+function chProg(ch,len){const end=shift(ch.start,len-1);const last=TODAY>end?end:shift(TODAY,-1);const from=ch.from&&ch.from>ch.start?ch.from:ch.start;let done=0;const missed=[];
+  for(let i=0;i<len;i++){const k=shift(ch.start,i);if(ch.marks[k]===1)done++;else if(k>=from&&k<=last)missed.push(k)}
+  const buoy=missed[0]||null;const pre=Math.max(0,diffDays(from,ch.start));return {done,missed,buoy,opened:done+(buoy?1:0),need:len-pre,pre,from,cd:diffDays(TODAY,ch.start)+1,end,today:ch.marks[TODAY]===1}}
 function flowerSvg(ch,len){const P=ch?chProg(ch,len):null;let s="";const rx=len>24?8:10;
   for(let i=0;i<len;i++){const k=ch?shift(ch.start,i):"";let f="var(--paper)",st="#D4D4D4",w=1,da="";
-    if(ch){if(ch.marks[k]===1){f="var(--rose)";st="var(--rose)"}else if(k===P.buoy){f="var(--rose-soft)";st="var(--rose)";da=' stroke-dasharray="5 3"'}else if(k===TODAY){st="var(--rose)";w=2.6}else if(k<TODAY){st="#BDBDBD";da=' stroke-dasharray="2 4"'}}
+    if(ch){if(ch.marks[k]===1){f="var(--rose)";st="var(--rose)"}else if(k<P.from){f="var(--line)";st="var(--line)"}else if(k===P.buoy){f="var(--rose-soft)";st="var(--rose)";da=' stroke-dasharray="5 3"'}else if(k===TODAY){st="var(--rose)";w=2.6}else if(k<TODAY){st="#BDBDBD";da=' stroke-dasharray="2 4"'}}
     s+=`<ellipse cx="0" cy="-58" rx="${rx}" ry="36" transform="rotate(${(i*360/len).toFixed(2)})" fill="${f}" stroke="${st}" stroke-width="${w}"${da}/>`}
   return svgEl("-100 -100 200 200",s+'<circle r="34" fill="var(--paper)" stroke="var(--ink)" stroke-width="1"/>')}
 function flowerIco(on){return svgEl("-10 -10 20 20",["0 -5","5 0","0 5","-5 0"].map(p=>`<circle cx="${p.split(" ")[0]}" cy="${p.split(" ")[1]}" r="4" fill="${on?"var(--rose)":"var(--line)"}"/>`).join("")+'<circle r="2.4" fill="var(--paper)"/>')}
-function chJoin(c,quiet){if(!c||myCh(c))return;setChs((S.chs||[]).concat({id:"club_"+c.id,club:c.id,title:c.title,len:c.len,start:c.start,win:c.win||null,marks:{}}));clubApi("join",{ch:c.id,av:myAv()}).then(()=>clubStats());if(!quiet){haptic("success");toast("Ты в челлендже клуба! 🌸")}}
+function chJoin(c,quiet){if(!c||myCh(c))return;setChs((S.chs||[]).concat(Object.assign({id:"club_"+c.id,club:c.id,title:c.title,len:c.len,start:c.start,win:c.win||null,marks:{}},TODAY>c.start?{from:TODAY}:{})));clubApi("join",{ch:c.id,av:myAv()}).then(()=>clubStats());if(!quiet){haptic("success");toast("Ты в челлендже клуба! 🌸")}}
 function chMark(ch,c){if(!ch)return;const w=(c&&c.win)||ch.win;if(w&&!inWin(w)){toast(`Отметка — с ${w[0]} до ${w[1]} по Москве`);return}
   const nl=(S.chs||[]).map(x=>x.id===ch.id?Object.assign({},x,{marks:Object.assign({},x.marks,{[TODAY]:1})}):x);S.chs=nl;setBig("chs",nl);haptic("success");
   if(ch.club)clubApi("mark",{ch:ch.club,day:TODAY,v:1,av:myAv()}).then(()=>clubStats());
@@ -1886,7 +1887,7 @@ function flowerCard(){const c=clubAct();const card=el("div",{class:"card flc"});
   if(c){const ch=myCh(c);
     if(!ch){card.append(el("span",{class:"eyebrow"},"челлендж клуба"),el("p",{class:"flt"},clubName(c)),c.desc?el("p",{style:"margin:0"},c.desc):null,el("button",{class:"btn full",type:"button",onclick:()=>chJoin(c)},"Вступить в челлендж"));return card}
     const P=chProg(ch,c.len);const w=c.win||ch.win;const open=!w||inWin(w);
-    card.append(el("div",{class:"flw-wrap",role:"img","aria-label":`Раскрыто ${P.opened} лепестков из ${c.len}`},flowerSvg(ch,c.len),el("div",{class:"flw-c"},el("b",{},P.opened),el("span",{},`из ${c.len}`))),
+    card.append(el("div",{class:"flw-wrap",role:"img","aria-label":`Раскрыто ${P.opened} лепестков из ${P.need}`},flowerSvg(ch,c.len),el("div",{class:"flw-c"},el("b",{},P.opened),el("span",{},`из ${P.need}`))),
       el("p",{class:"flt"},clubName(c)),
       el("span",{class:"muted flsub"},`${P.today?"сегодняшний лепесток раскрыт ✓":`день ${P.cd} из ${c.len}`} · ${P.buoy?"спасательный круг использован":"спасательный круг есть"}`));
     if(P.today){const md=(ch.mood||{})[TODAY];
@@ -1904,14 +1905,14 @@ function flowerCard(){const c=clubAct();const card=el("div",{class:"card flc"});
   else card.append(el("span",{class:"eyebrow"},"перерыв между челленджами"),el("p",{class:"flt"},"Итоги, голосование и новый старт"),el("button",{class:"btn full",type:"button",onclick:()=>show("club")},"Открыть клуб"));
   return card}
 const CEL={7:["Первая неделя позади","Самые трудные дни уже позади. С этого места привычка начинает держаться сама.","Неделя"],14:["Две трети пути","Новизна прошла, а ты продолжаешь. Это и есть привычка.","Две недели"],full:["Цветок распустился","21 день — привычка теперь твоя. Ты в розыгрыше подарка клуба.","Три недели"],fin:["Финиш","Главное — дойти до конца. И это получилось.",""]};
-function chCelebrate(ch,c,force){if(!ch||!c)return;const P=chProg(ch,c.len);const got=new Set(ch.cel||[]);const reach=[7,14].filter(n=>P.opened>=n);const finNow=P.opened>=c.len||(P.cd>=c.len&&P.today);if(finNow)reach.push("fin");
+function chCelebrate(ch,c,force){if(!ch||!c)return;const P=chProg(ch,c.len);const got=new Set(ch.cel||[]);const reach=[7,14].filter(n=>P.opened>=n);const finNow=P.opened>=P.need||(P.cd>=c.len&&P.today);if(finNow)reach.push("fin");
   const hit=force||reach.filter(n=>!got.has(n)).pop();if(!hit)return;
   const nl=(S.chs||[]).map(x=>x.id===ch.id?Object.assign({},x,{cel:[...new Set([...got,...reach])]}):x);S.chs=nl;setBig("chs",nl);
-  const full=P.opened>=c.len;const t=hit==="fin"?CEL[full?"full":"fin"]:CEL[hit];
+  const full=P.opened>=P.need;const t=hit==="fin"?CEL[full?"full":"fin"]:CEL[hit];
   S.bdg=S.bdg||{};const stp=hit==="fin"?(full?21:0):hit;if(stp&&!S.bdg[`st${stp}_${c.id}`]){S.bdg[`st${stp}_${c.id}`]=TODAY;setBig("bdg",S.bdg)}
   const st=(S.clubStat||{})[c.id];let extra=null;
   if(hit===14){const bo=(st&&st.board)||[];extra=bo.length?el("p",{class:"muted"},`Из ${st.members||bo.length} участников больше 10 дней отметили ${bo.filter(b=>b.n>=10).length} — и ты среди них.`):el("p",{class:"muted"},P.buoy?"Спасательный круг уже использован — держимся до конца.":"Спасательный круг всё ещё с тобой.")}
-  if(hit==="fin"&&!full)extra=el("p",{class:"muted"},`${P.opened} лепестков из ${c.len}.`);
+  if(hit==="fin"&&!full)extra=el("p",{class:"muted"},`${P.opened} лепестков из ${P.need}.`);
   const ov=el("div",{class:"cel",role:"dialog","aria-modal":"true","aria-label":t[0]});const close=()=>{ov.remove();document.body.style.overflow="";render()};
   const conf=svgEl("0 0 390 260",Array.from({length:18},(_,j)=>{const x=(j*71+23)%380+5,y=(j*47+11)%230+10;return `<ellipse cx="${x}" cy="${y}" rx="4" ry="10" transform="rotate(${j*37%180} ${x} ${y})" fill="${["var(--ink)","var(--rose)","var(--rose-soft)"][j%3]}"/>`}).join(""),"conf");
   ov.append(...[conf,el("span",{class:"eyebrow"},hit==="fin"?"финиш":`день ${P.opened} из ${c.len}`),el("h2",{},t[0]),
@@ -2021,7 +2022,7 @@ async function storyCard(c,ch){const P=chProg(ch,c.len);const W=1080,H=1920;cons
   const F=(w,px)=>`${w} ${px}px Jost, Futura, sans-serif`;
   x.fillStyle="#FFFFFF";x.fillRect(0,0,W,H);x.strokeStyle="#111111";x.lineWidth=30;x.strokeRect(15,15,W-30,H-30);x.textAlign="center";x.fillStyle="#111111";
   x.font=F(500,40);x.fillText("L I F E   B Y   M E   C L U B",W/2,180);
-  const full=P.opened>=c.len;x.font=F(300,150);x.fillText(full?"Челлендж":"Финиш",W/2,400);if(full)x.fillText("пройден",W/2,550);
+  const full=P.opened>=P.need;x.font=F(300,150);x.fillText(full?"Челлендж":"Финиш",W/2,400);if(full)x.fillText("пройден",W/2,550);
   x.fillStyle="#D7261E";x.font=F(300,72);x.fillText(clubName(c),W/2,full?680:540);
   const cx=W/2,cy=1090,k=3.1;for(let i=0;i<c.len;i++){const d=shift(ch.start,i);const on=ch.marks[d]===1,b=d===P.buoy;x.save();x.translate(cx,cy);x.rotate(i*2*Math.PI/c.len);x.beginPath();x.ellipse(0,-58*k,10*k,36*k,0,0,2*Math.PI);x.fillStyle=on?"#D7261E":b?"#FBE5E3":"#FFFFFF";x.fill();x.lineWidth=3;x.strokeStyle=on||b?"#D7261E":"#D4D4D4";x.stroke();x.restore()}
   x.beginPath();x.arc(cx,cy,34*k,0,2*Math.PI);x.fillStyle="#FFFFFF";x.fill();x.lineWidth=4;x.strokeStyle="#111111";x.stroke();
@@ -2122,7 +2123,7 @@ function renderMe(app){const c=cfg();app.append(el("div",{class:"hero"},el("div"
     row("День рождения",bi?bi.date:"—"),
     el("button",{class:"btn ghost",type:"button",onclick:()=>{ob={step:1,data:Object.assign({},DEF,S.settings)};renderOb()}},"Изменить настройки")));
   app.append(notifyCard());
-  app.append(el("p",{class:"muted",style:"font-size:.8rem;text-align:center;margin:8px 0 0"},(SRV.on?"Данные хранятся на сервере клуба в России. Цикл, вес и самочувствие — только на этом телефоне.":inTG?"Данные сохраняются в твоём Telegram. Цикл, вес и самочувствие — только на этом телефоне.":"Превью: данные хранятся только в этом браузере.")+" · версия 30"))}
+  app.append(el("p",{class:"muted",style:"font-size:.8rem;text-align:center;margin:8px 0 0"},(SRV.on?"Данные хранятся на сервере клуба в России. Цикл, вес и самочувствие — только на этом телефоне.":inTG?"Данные сохраняются в твоём Telegram. Цикл, вес и самочувствие — только на этом телефоне.":"Превью: данные хранятся только в этом браузере.")+" · версия 31"))}
 
 /* ================= boot ================= */
 async function boot(){document.body.dataset.skin="kar";render();
