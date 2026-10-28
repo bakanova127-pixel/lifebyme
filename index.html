@@ -571,6 +571,7 @@ body[data-skin="kar"] .wm{border-radius:0}
 .flt{font-size:1.4rem;font-weight:300;margin:0;line-height:1.2}
 .flsub{font-size:.88rem}
 .zrb{display:flex;flex-direction:column;gap:8px;width:100%;margin-top:4px}
+.btn.zr12{background:var(--ink);color:var(--paper)}body[data-skin="kar"] .btn.zr12::before{filter:brightness(0)}
 .linkbtn{border:0;background:none;padding:8px;min-height:40px;color:var(--ink);text-decoration:underline;text-decoration-color:var(--rose);text-underline-offset:4px;font:inherit;font-size:.95rem;cursor:pointer}
 .flfeed{display:flex;justify-content:space-between;gap:8px;width:100%;border:0;border-top:1px solid var(--line);background:none;padding:12px 0 0;margin-top:4px;font:inherit;font-size:.92rem;color:var(--ink);text-align:left;cursor:pointer}.flfeed .go{color:var(--rose);white-space:nowrap}
 .moods{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;width:100%}
@@ -1880,7 +1881,7 @@ function chMark(ch,c){if(!ch)return;const w=(c&&c.win)||ch.win;if(w&&!inWin(w)){
   setTimeout(checkChBadges,600);render();chCelebrate(nl.find(x=>x.id===ch.id),c)}
 function chMood(ch,v){const nl=(S.chs||[]).map(x=>x.id===ch.id?Object.assign({},x,{mood:Object.assign({},x.mood||{},{[TODAY]:v})}):x);haptic("light");setChs(nl)}
 function zrBtns(ch,c,canMark){const w=el("div",{class:"zrb"});
-  w.append(el("div",{class:"row2",style:"grid-template-columns:2fr 1fr"},el("button",{class:"btn",type:"button",onclick:()=>zrGo(6)},"Зарядка · 6 мин"),el("button",{class:"btn ghost",type:"button",onclick:()=>zrGo(12)},"12 мин")),
+  w.append(el("span",{class:"muted",style:"font-size:.85rem;text-align:center"},"Зарядка"),el("div",{class:"row2"},el("button",{class:"btn",type:"button",onclick:()=>zrGo(6)},"6 минут"),el("button",{class:"btn zr12",type:"button",onclick:()=>zrGo(12)},"12 минут")),
     el("button",{class:"btn ghost full",type:"button",onclick:()=>zrGo(2)},"Ленивый день · 2 мин"));
   if(canMark)w.append(el("button",{class:"linkbtn",type:"button",onclick:()=>chMark(ch,c)},"Уже сделано — просто отметиться"));return w}
 function flowerCard(){const c=clubAct();const card=el("div",{class:"card flc"});
@@ -1902,7 +1903,8 @@ function flowerCard(){const c=clubAct();const card=el("div",{class:"card flc"});
   const up=clubNextUp();
   if(up){const dn=diffDays(up.start,TODAY);const ch=myCh(up);card.append(el("span",{class:"eyebrow"},`до старта ${dn} ${plural(dn,"день","дня","дней")}`),el("p",{class:"flt"},clubName(up)),up.desc?el("p",{style:"margin:0"},up.desc):null,ch?el("p",{class:"muted",style:"margin:0"},`Ты в челлендже ✓ Старт ${fmtDate(up.start)}`):el("button",{class:"btn full",type:"button",onclick:()=>chJoin(up)},"Я участвую"));
     if(isZr(up))card.append(el("p",{class:"muted",style:"margin:6px 0 0;font-size:.9rem"},`Зарядку можно делать уже сейчас — лепестки начнут раскрываться с ${fmtDate(up.start)}`),zrBtns(null,up,false))}
-  else card.append(el("span",{class:"eyebrow"},"перерыв между челленджами"),el("p",{class:"flt"},"Итоги, голосование и новый старт"),el("button",{class:"btn full",type:"button",onclick:()=>show("club")},"Открыть клуб"));
+  else{const last=clubLast();card.append(el("span",{class:"eyebrow"},"перерыв между челленджами"),el("p",{class:"flt"},"Итоги, голосование и новый старт"),el("button",{class:"btn ghost full",type:"button",onclick:()=>show("club")},"Открыть клуб"));
+    if(!last||isZr(last))card.append(el("p",{class:"muted",style:"margin:6px 0 0;font-size:.9rem"},"А зарядку можно делать и в перерыве — привычка не теряется"),zrBtns(null,null,false))}
   return card}
 const CEL={7:["Первая неделя позади","Самые трудные дни уже позади. С этого места привычка начинает держаться сама.","Неделя"],14:["Две трети пути","Новизна прошла, а ты продолжаешь. Это и есть привычка.","Две недели"],full:["Цветок распустился","21 день — привычка теперь твоя. Ты в розыгрыше подарка клуба.","Три недели"],fin:["Финиш","Главное — дойти до конца. И это получилось.",""]};
 function chCelebrate(ch,c,force){if(!ch||!c)return;const P=chProg(ch,c.len);const got=new Set(ch.cel||[]);const reach=[7,14].filter(n=>P.opened>=n);const finNow=P.opened>=P.need||(P.cd>=c.len&&P.today);if(finNow)reach.push("fin");
@@ -2123,7 +2125,7 @@ function renderMe(app){const c=cfg();app.append(el("div",{class:"hero"},el("div"
     row("День рождения",bi?bi.date:"—"),
     el("button",{class:"btn ghost",type:"button",onclick:()=>{ob={step:1,data:Object.assign({},DEF,S.settings)};renderOb()}},"Изменить настройки")));
   app.append(notifyCard());
-  app.append(el("p",{class:"muted",style:"font-size:.8rem;text-align:center;margin:8px 0 0"},(SRV.on?"Данные хранятся на сервере клуба в России. Цикл, вес и самочувствие — только на этом телефоне.":inTG?"Данные сохраняются в твоём Telegram. Цикл, вес и самочувствие — только на этом телефоне.":"Превью: данные хранятся только в этом браузере.")+" · версия 31"))}
+  app.append(el("p",{class:"muted",style:"font-size:.8rem;text-align:center;margin:8px 0 0"},(SRV.on?"Данные хранятся на сервере клуба в России. Цикл, вес и самочувствие — только на этом телефоне.":inTG?"Данные сохраняются в твоём Telegram. Цикл, вес и самочувствие — только на этом телефоне.":"Превью: данные хранятся только в этом браузере.")+" · версия 32"))}
 
 /* ================= boot ================= */
 async function boot(){document.body.dataset.skin="kar";render();
