@@ -767,7 +767,7 @@ function addGift(u, days) { const base = [u.gift || "", u.paid || "", mskDay(), 
 async function sendInvite(chat, u) {
   const link = refLink(u); if (!link) return tg("sendMessage", { chat_id: chat, text: "Ссылка-приглашение скоро появится 🖤" });
   const n = +u.refn || 0;
-  return tg("sendMessage", { chat_id: chat, parse_mode: "HTML", disable_web_page_preview: true, text: T.invite(link, n, u.gift && u.gift >= mskDay() ? ru(u.gift) : ""), reply_markup: { inline_keyboard: [[{ text: "📤 Отправить другу", url: `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(T.inviteShare)}` }]] } });
+  return tg("sendMessage", { chat_id: chat, parse_mode: "HTML", disable_web_page_preview: true, text: T.invite(link, n, u.gift && u.gift >= mskDay() ? ru(u.gift) : "", isFree()), reply_markup: { inline_keyboard: [[{ text: "📤 Отправить другу", url: `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(T.inviteShare)}` }]] } });
 }
 async function refFriend(u) { // неделя другу, который пришёл по ссылке
   if (!u || !u.ref || +u.ref === +u.id || flags(u).has("rg")) return;
@@ -778,7 +778,11 @@ async function refCredit(u) { // неделя тому, кто пригласи�
   if (!u || !u.ref || +u.ref === +u.id || flags(u).has("rf")) return;
   const f = flags(u); f.add("rf"); setFlags(u, f); await db().putUser(u);
   const inv = await db().getUser(+u.ref); if (!inv || !inv.consent) return;
-  const until = addGift(inv, WEEK); inv.refn = (+inv.refn || 0) + 1;
+  inv.refn = (+inv.refn || 0) + 1;
+  // в бесплатном ноябре неделя за каждого вступившего друга, но не больше 4 недель
+  if (isFree() && (+inv.refnov || 0) >= 4) { const nm0 = (u.name || "").split(" ")[0] || "Друг"; inv.refs = [nm0].concat(String(inv.refs || "").split(",").filter(Boolean)).slice(0, 30).join(","); await db().putUser(inv); return tg("sendMessage", { chat_id: inv.id, parse_mode: "HTML", text: T.refMax(esc(nm0)) }); }
+  if (isFree()) inv.refnov = (+inv.refnov || 0) + 1;
+  const until = addGift(inv, WEEK);
   const nm = (u.name || "").split(" ")[0] || "Друг"; inv.refs = [nm].concat(String(inv.refs || "").split(",").filter(Boolean)).slice(0, 30).join(",");
   await db().putUser(inv);
   await tg("sendMessage", { chat_id: inv.id, parse_mode: "HTML", text: T.refGot(esc(nm), ru(until), isFree()) });
