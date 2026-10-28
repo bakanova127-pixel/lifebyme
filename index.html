@@ -341,7 +341,8 @@ body.preview .tgbar{display:flex;align-items:center;justify-content:space-betwee
 .pl .t{font-size:4.2rem;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
 .pl .rp{font-size:1.1rem;color:var(--muted);padding:0 8px}
 .pl .how{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:14px 16px;font-size:1.15rem;line-height:1.5}
-.pl .how.big{font-size:1.3rem;line-height:1.45}.pl video.nextv{max-height:26vh;opacity:.9}
+.pl .how.big{font-size:1.3rem;line-height:1.45}.pl video{aspect-ratio:3/2;height:auto;max-height:34vh}.pl video.nextv{opacity:.92}
+.pl:has(video) .ring{width:min(46vw,190px)}.pl:has(video) .t{font-size:3.2rem}.pl:has(video){gap:9px}
 .pl .ctl{display:grid;grid-template-columns:1fr 1.5fr 1fr;gap:10px;margin-top:auto}
 .pl .ctl .btn{padding:14px 6px}
 .pl .next{color:var(--muted);font-size:1.05rem;text-align:center;min-height:1.3em}
@@ -957,13 +958,16 @@ const ZR_LIB={
  cool:[["Колени к груди","Лёжа на спине. Обними колени и мягко покачайся"],["Скрутка лёжа","Лёжа на спине. Колени вправо, взгляд влево. Потом наоборот"],["Растяжка ноги лёжа","Лёжа на спине. Подними прямую ногу и потяни к себе. Меняй ногу"]],
  breath:["Дыхание лёжа","Лёжа на спине. Вдох животом на 4 счёта, выдох на 6"]};
 const ZR_LAZY=[["Круги руками","Руки в стороны. Большие круги вперёд, потом назад"],["Приседания","Ноги на ширине плеч. Садись, как на стул, спина ровная, пятки на полу"],["Потягивание","Встань на носки, руки вверх — тянись к потолку и дыши"]];
-/* 30 секунд упражнение + 10 секунд отдых: 6 минут — 9 упражнений, 12 минут — 18 */
-function zrBuild(min,k){const seed=[...(k||TODAY)].reduce((a,ch)=>a*31+ch.charCodeAt(0)>>>0,7);let x=seed;const rnd=()=>{x=(x*1103515245+12345)>>>0;return x/4294967296};
-  const pick=(arr,n)=>{const idx=arr.map((_,i)=>i);for(let i=idx.length-1;i>0;i--){const j=Math.floor(rnd()*(i+1));[idx[i],idx[j]]=[idx[j],idx[i]]}return idx.slice(0,n).sort((a,b)=>a-b).map(i=>arr[i])};
-  if(min<=2)return {t:"Ленивый день · 2 минуты",ex:ZR_LAZY.map(e=>[e[0],"30 сек",e[1]]),lazy:true};
-  const n=min>=12?{warm:3,cardio:4,legs:4,floor:4,cool:2}:{warm:2,cardio:2,legs:2,floor:2,cool:0};
-  const list=[].concat(pick(ZR_LIB.warm,n.warm),pick(ZR_LIB.cardio,n.cardio),pick(ZR_LIB.legs,n.legs),pick(ZR_LIB.floor,n.floor),pick(ZR_LIB.cool,n.cool),[ZR_LIB.breath]);
-  return {t:`Зарядка ${min} минут`,ex:list.map(e=>[e[0],"30 сек",e[1]])}}
+/* Зарядка одинаковая для всех: план на 21 день (6 минут — 9 упражнений, 12 минут — те же + ещё 9). 30 сек упражнение + 10 сек отдых. */
+const ZR_NAMES=["Наклоны головы", "Круги плечами", "Круги руками", "Повороты корпуса", "Наклоны в стороны", "Круги тазом", "Марш на месте", "Шаги в сторону с хлопком", "Колено к локтю стоя", "Захлёст голени", "Бег на месте", "Прыжки ноги врозь", "Приседания", "Выпады назад", "Широкий присед", "Подъёмы на носки", "Отжимания от стены", "Кошка-корова", "Птица-собака", "Планка на локтях", "Лодочка на животе", "Ягодичный мост", "Скручивания", "Мёртвый жук", "Колени к груди", "Скрутка лёжа", "Дыхание лёжа", "Потягивание"];
+const ZR_PLAN=[[[0, 1, 6, 7, 13, 15, 17, 21, 26], [0, 1, 2, 6, 7, 8, 9, 13, 14, 15, 16, 17, 18, 21, 22, 24, 25, 26]], [[2, 3, 8, 9, 14, 16, 18, 22, 26], [2, 3, 4, 6, 7, 8, 9, 12, 14, 15, 16, 18, 20, 21, 22, 24, 25, 26]], [[4, 5, 6, 8, 12, 15, 20, 21, 26], [0, 4, 5, 6, 7, 8, 9, 12, 13, 15, 16, 17, 20, 21, 22, 24, 25, 26]], [[0, 1, 7, 9, 13, 16, 17, 22, 26], [0, 1, 2, 6, 7, 8, 9, 12, 13, 14, 16, 17, 18, 21, 22, 24, 25, 26]], [[2, 3, 6, 9, 12, 14, 18, 21, 26], [2, 3, 4, 6, 7, 8, 9, 12, 13, 14, 15, 18, 20, 21, 22, 24, 25, 26]], [[4, 5, 7, 8, 14, 16, 20, 22, 26], [0, 4, 5, 6, 7, 8, 9, 13, 14, 15, 16, 17, 20, 21, 22, 24, 25, 26]], [[0, 1, 8, 9, 12, 15, 17, 21, 26], [0, 1, 2, 6, 7, 8, 9, 12, 14, 15, 16, 17, 18, 21, 22, 24, 25, 26]], [[2, 3, 7, 8, 12, 15, 20, 22, 26], [2, 3, 4, 7, 8, 9, 10, 12, 13, 15, 16, 17, 20, 21, 22, 24, 25, 26]], [[4, 5, 9, 10, 13, 16, 17, 21, 26], [0, 4, 5, 7, 8, 9, 10, 12, 13, 14, 16, 17, 18, 21, 22, 24, 25, 26]], [[0, 1, 7, 9, 12, 14, 18, 22, 26], [0, 1, 2, 7, 8, 9, 10, 12, 13, 14, 15, 18, 19, 21, 22, 24, 25, 26]], [[2, 3, 8, 10, 14, 16, 19, 21, 26], [2, 3, 4, 7, 8, 9, 10, 13, 14, 15, 16, 19, 20, 21, 22, 24, 25, 26]], [[4, 5, 7, 10, 12, 15, 20, 22, 26], [0, 4, 5, 7, 8, 9, 10, 12, 14, 15, 16, 17, 20, 21, 22, 24, 25, 26]], [[0, 1, 8, 9, 13, 16, 17, 21, 26], [0, 1, 2, 7, 8, 9, 10, 12, 13, 15, 16, 17, 18, 21, 22, 24, 25, 26]], [[2, 3, 9, 10, 12, 14, 18, 22, 26], [2, 3, 4, 7, 8, 9, 10, 12, 13, 14, 16, 18, 19, 21, 22, 24, 25, 26]], [[4, 5, 8, 11, 12, 14, 19, 23, 26], [0, 4, 5, 8, 9, 10, 11, 12, 13, 14, 15, 19, 20, 21, 23, 24, 25, 26]], [[0, 1, 10, 11, 14, 16, 20, 21, 26], [0, 1, 2, 8, 9, 10, 11, 13, 14, 15, 16, 17, 20, 21, 22, 24, 25, 26]], [[2, 3, 8, 11, 12, 15, 17, 22, 26], [2, 3, 4, 8, 9, 10, 11, 12, 14, 15, 16, 17, 18, 22, 23, 24, 25, 26]], [[4, 5, 9, 11, 13, 16, 18, 23, 26], [0, 4, 5, 8, 9, 10, 11, 12, 13, 15, 16, 18, 19, 21, 23, 24, 25, 26]], [[0, 1, 8, 11, 12, 14, 19, 21, 26], [0, 1, 2, 8, 9, 10, 11, 12, 13, 14, 16, 19, 20, 21, 22, 24, 25, 26]], [[2, 3, 9, 10, 13, 15, 20, 22, 26], [2, 3, 4, 8, 9, 10, 11, 12, 13, 14, 15, 17, 20, 22, 23, 24, 25, 26]], [[4, 5, 10, 11, 13, 15, 17, 23, 26], [0, 4, 5, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 21, 23, 24, 25, 26]]];
+const ZR_HOW=Object.fromEntries([].concat(ZR_LIB.warm,ZR_LIB.cardio,ZR_LIB.legs,ZR_LIB.floor,ZR_LIB.cool,[ZR_LIB.breath],ZR_LAZY));
+/* какой день плана: день челленджа клуба (если идёт зарядка), иначе — по кругу от даты */
+function zrDay(k){k=k||TODAY;const c=(S.club||[]).find(x=>isZr(x)&&k>=x.start&&diffDays(k,x.start)<x.len);if(c)return diffDays(k,c.start)%21;
+  const last=(S.club||[]).filter(x=>isZr(x)&&x.start<=k).sort((a,b)=>a.start<b.start?1:-1)[0];const base=last?last.start:"2026-11-01";return ((diffDays(k,base)%21)+21)%21}
+function zrBuild(min,k){if(min<=2)return {t:"Ленивый день · 2 минуты",ex:ZR_LAZY.map(e=>[e[0],"30 сек",e[1]]),lazy:true};
+  const d=zrDay(k);const list=ZR_PLAN[d][min>=12?1:0].map(i=>ZR_NAMES[i]);
+  return {t:`Зарядка ${min} минут · день ${d+1}`,ex:list.map(n=>[n,"30 сек",ZR_HOW[n]||""])}}
 function zrGo(min,k){const z=zrBuild(min,k||TODAY);plStart({title:z.t,list:z.ex.map(([a,r,how])=>({key:a,n:a,r,tip:"",how})),k:k||TODAY,mode:"zr",lazy:!!z.lazy,opt:{rest:10,restEx:10,prep:10}})}
 function plParse(r){r=(r||"").toLowerCase().replace(/\s+/g," ").trim();let m;
   if(m=r.match(/(\d+)\s*сек\s*\/\s*(\d+)\s*отдых/))return {sets:1,sec:+m[1],rest:+m[2]};
@@ -988,7 +992,7 @@ function plSteps(list,opt){/* list: [{key,n,r,tip}] */const st=[];let circStart=
   while(st.length&&st[st.length-1].kind==="rest")st.pop();
   return [{kind:"prep",sec:opt.prep||5,name:"Приготовься",ei:0}].concat(st)}
 let PL=null;
-const EXV={};/* видео упражнений: "Название": "ссылка на ролик" — добавим, когда будут готовы */
+const EXV={"Наклоны головы": "video/01.mp4", "Круги плечами": "video/02.mp4", "Круги руками": "video/03.mp4", "Повороты корпуса": "video/04.mp4", "Наклоны в стороны": "video/05.mp4", "Круги тазом": "video/06.mp4", "Марш на месте": "video/07.mp4", "Колено к локтю стоя": "video/09.mp4", "Захлёст голени": "video/10.mp4", "Бег на месте": "video/11.mp4", "Прыжки ноги врозь": "video/12.mp4", "Приседания": "video/13.mp4"};/* видео упражнений зарядки: файлы в папке video/, номер — как в задании на съёмку */
 /* звук: «пим» за 3 секунды до конца упражнения и до конца отдыха. На iPhone звук включается только после нажатия — поэтому «будим» его на старте */
 function plUnlock(){try{const A=plBeep.a||(plBeep.a=new (window.AudioContext||window.webkitAudioContext)());if(A.state==="suspended")A.resume();
     if(!plUnlock.el){const a=new Audio("data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==");a.loop=true;a.volume=0.01;a.setAttribute("playsinline","");plUnlock.el=a}plUnlock.el.play().catch(()=>{})}catch(e){}}
@@ -2088,10 +2092,10 @@ function accessCard(){const a=S.acc,refs=a.refs||[],gift=a.giftEnd&&a.giftEnd>=T
     a.kind==="free"?null:el("button",{class:"btn ghost",type:"button",onclick:()=>openBot("pay")},a.kind==="paid"||a.kind==="gift"?"Продлить доступ":"Тарифы и оплата"))}
 /* «Пригласи друга»: неделя другу и неделя тебе */
 function inviteCard(){const link=S.acc&&S.acc.ref;if(!link)return null;const n=+(S.acc.refn||0);
-  const share=`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent("Присоединяйся к Life By Me — клубу, где мы вместе держим одну привычку 21 день. По моей ссылке у тебя неделя бесплатно 🖤")}`;
+  const share=`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent("Пойдём со мной в Life by me club: одна привычка в месяц, 21 день, все вместе. Это бесплатно 🖤")}`;
   const inp=el("input",{id:"refLink",value:link,readonly:"readonly","aria-label":"Моя ссылка-приглашение"});
-  return el("div",{class:"card"},el("div",{class:"hrow"},el("h2",{},"Пригласи друга 🎁"),n?el("span",{class:"tag"},`пришли: ${n}`):null),
-    el("p",{style:"margin:0"},"Друг получает неделю бесплатно, и ты тоже +1 неделю. Сколько друзей, столько недель."),inp,
+  return el("div",{class:"card"},el("div",{class:"hrow"},el("h2",{},"Позови друга"),n?el("span",{class:"tag"},`пришли: ${n}`):null),
+    el("p",{style:"margin:0"},"Вдвоём держать привычку проще. Отправь ссылку — друг попадёт прямо в клуб."),inp,
     el("div",{class:"row2"},el("button",{class:"btn",type:"button",onclick:()=>{haptic("light");try{if(inTG&&tg.openTelegramLink){tg.openTelegramLink(share);return}}catch(e){}window.open(share,"_blank")}},"📤 Отправить другу"),
       el("button",{class:"btn ghost",type:"button",onclick:async()=>{try{await navigator.clipboard.writeText(link);toast("Ссылка скопирована")}catch(e){inp.select();toast("Выдели и скопируй ссылку")}}},"Скопировать")))}
 /* «Первый день за 3 минуты»: три шага на главной, пока не сделаны */
@@ -2110,7 +2114,7 @@ function renderMe(app){const c=cfg();app.append(el("div",{class:"hero"},el("div"
     el("div",{},el("b",{style:"font-family:var(--display);font-size:1.6rem;display:block"},Math.max(0,...c.habits.map(streak))),el("span",{class:"muted",style:"font-size:.8rem"},"лучшая серия")))));
   app.append(avatarCard());
   app.append(modsCard());
-  if(S.acc&&S.acc.kind!=="admin")app.append(accessCard());
+  if(S.acc&&S.acc.kind!=="admin"&&S.acc.kind!=="free")app.append(accessCard());
   app.append(badgesCard());
   const ic=inviteCard();if(ic)app.append(ic);
   app.append(dataCard());
@@ -2124,7 +2128,7 @@ function renderMe(app){const c=cfg();app.append(el("div",{class:"hero"},el("div"
     row("День рождения",bi?bi.date:"—"),
     el("button",{class:"btn ghost",type:"button",onclick:()=>{ob={step:1,data:Object.assign({},DEF,S.settings)};renderOb()}},"Изменить настройки")));
   app.append(notifyCard());
-  app.append(el("p",{class:"muted",style:"font-size:.8rem;text-align:center;margin:8px 0 0"},(SRV.on?"Данные хранятся на сервере клуба в России. Цикл, вес и самочувствие — только на этом телефоне.":inTG?"Данные сохраняются в твоём Telegram. Цикл, вес и самочувствие — только на этом телефоне.":"Превью: данные хранятся только в этом браузере.")+" · версия 33"))}
+  app.append(el("p",{class:"muted",style:"font-size:.8rem;text-align:center;margin:8px 0 0"},(SRV.on?"Данные хранятся на сервере клуба в России. Цикл, вес и самочувствие — только на этом телефоне.":inTG?"Данные сохраняются в твоём Telegram. Цикл, вес и самочувствие — только на этом телефоне.":"Превью: данные хранятся только в этом браузере.")+" · версия 34"))}
 
 /* ================= boot ================= */
 async function boot(){document.body.dataset.skin="kar";render();

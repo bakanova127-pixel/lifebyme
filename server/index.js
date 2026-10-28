@@ -57,8 +57,10 @@ const ruShort = d => { const [, m, dd] = d.split("-"); return `${+dd} ${MONTHS[+
 const addDays = (d, n) => mskDay(Date.parse(d + "T12:00:00Z") + n * DAY - 3 * 3600e3);
 const esc = s => String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const freeEnd = () => Date.parse(FREE_UNTIL() + "T00:00:00+03:00");
-const isFree = () => Date.now() < freeEnd();
-const freeLabel = () => isFree() ? `До ${ruShort(FREE_UNTIL())}` : "";
+// Клуб бесплатный навсегда. Чтобы вернуть подписку и оплату через Продамус, задай переменную PAID_MODE=1.
+const PAID = () => env("PAID_MODE") === "1";
+const isFree = () => !PAID() || Date.now() < freeEnd();
+const freeLabel = () => !PAID() ? "Всегда" : isFree() ? `До ${ruShort(FREE_UNTIL())}` : "";
 const flags = u => new Set((u.rem || "").split(",").filter(Boolean));
 const setFlags = (u, s) => { u.rem = [...s].slice(-30).join(","); };
 
@@ -72,7 +74,7 @@ function access(u) {
   const today = mskDay();
   const gift = u.gift && u.gift >= today ? u.gift : "";
   if (u.paid && u.paid >= today) return { ok: true, kind: "paid", until: [u.paid, gift].sort().pop(), paidUntil: u.paid, gift };
-  if (isFree()) return { ok: true, kind: "free", until: FREE_UNTIL(), gift };
+  if (isFree()) return { ok: true, kind: "free", until: PAID() ? FREE_UNTIL() : "", gift };
   if (gift) return { ok: true, kind: "gift", until: gift, gift };
   const end = trialEnd(u);
   if (end && Date.now() < end) return { ok: true, kind: "trial", ends: end, daysLeft: Math.ceil((end - Date.now()) / DAY) };
@@ -438,7 +440,7 @@ async function onMessage(m) {
     return tg("sendMessage", { chat_id: chat, text: T.fbThanks });
   }
   if (text === "/app") return tg("sendMessage", { chat_id: chat, text: T.openApp, reply_markup: { inline_keyboard: [[btnApp()]] } });
-  if (text === "/plans") return tg("sendMessage", { chat_id: chat, text: T.plans(freeLabel(), isFounder(u)), parse_mode: "HTML", reply_markup: kbPlans() });
+  if (text === "/plans") return tg("sendMessage", { chat_id: chat, text: PAID() ? T.plans(freeLabel(), isFounder(u)) : T.freeClub, parse_mode: "HTML", reply_markup: kbPlans() });
   if (text === "/help") return tg("sendMessage", { chat_id: chat, text: T.faq(ADMIN_NICK()), parse_mode: "HTML", disable_web_page_preview: true, reply_markup: kbBack() });
   if (text === "/delete") return tg("sendMessage", { chat_id: chat, text: T.delAsk, reply_markup: { inline_keyboard: [[{ text: "🗑 Да, удалить всё", callback_data: "delyes" }], [{ text: "Нет, оставить", callback_data: "delno" }]] } });
   if (m.voice || m.audio) {
@@ -523,7 +525,7 @@ async function onCallback(cq) {
   if (d === "delyes") { await db().deleteUser(u.id); await tg("editMessageReplyMarkup", { chat_id: chat, message_id: m.message_id, reply_markup: { inline_keyboard: [] } }); return tg("sendMessage", { chat_id: chat, text: T.delDone }); }
   if (d === "delno") return tg("editMessageText", { chat_id: chat, message_id: m.message_id, text: "Хорошо, ничего не удаляю 🖤" });
   if (d === "choff") { const f = flags(u); f.add("nocr"); setFlags(u, f); await db().putUser(u); return tg("sendMessage", { chat_id: chat, text: T.chOff }); }
-  const pages = { inside: [T.inside, kbBack()], plans: [T.plans(freeLabel(), isFounder(u)), kbPlans()], faq: [T.faq(ADMIN_NICK()), kbBack()], back: [T.welcome(freeLabel()), kbMain()] };
+  const pages = { inside: [T.inside, kbBack()], plans: [PAID() ? T.plans(freeLabel(), isFounder(u)) : T.freeClub, kbPlans()], faq: [T.faq(ADMIN_NICK()), kbBack()], back: [T.welcome(freeLabel()), kbMain()] };
   if (d === "pay") return sendPay(chat, u);
   const p = pages[d]; if (!p) return;
   const base = { chat_id: chat, message_id: m.message_id, parse_mode: "HTML", reply_markup: p[1] };
@@ -551,7 +553,7 @@ async function api(action, body) {
     if (u.consent && !u.trial && +u.id !== ADMIN()) { u.trial = String(Date.now()); await db().putUser(u); }
     const acc = access(u);
     if (u.consent && acc.ok && CLUB_CHAT() && !(await isMember(u))) return [200, { ...acc, ok: false, kind: "club", clubLink: await clubLink(), consent: true, docs: T.DOCS, bot: env("BOT_USERNAME") }];
-    return [200, { ...acc, consent: !!u.consent, docs: T.DOCS, freeUntil: isFree() ? FREE_UNTIL() : "", trialDays: TRIAL_DAYS(), admin: +u.id === ADMIN(), bot: env("BOT_USERNAME"), joined: +u.trial || +u.created || 0, refn: +u.refn || 0, refs: String(u.refs || "").split(",").filter(Boolean), ref: refLink(u), giftEnd: u.gift || "", freeLast: lastFreeDay(), plans: plansFor(u).map(p => ({ id: p.id, t: p.t, e: p.e, price: p.price, note: p.note || "", url: isFree() ? null : payLink(u, p) })) }];
+    return [200, { ...acc, consent: !!u.consent, docs: T.DOCS, freeUntil: PAID() && isFree() ? FREE_UNTIL() : "", trialDays: TRIAL_DAYS(), admin: +u.id === ADMIN(), bot: env("BOT_USERNAME"), joined: +u.trial || +u.created || 0, refn: +u.refn || 0, refs: String(u.refs || "").split(",").filter(Boolean), ref: refLink(u), giftEnd: u.gift || "", freeLast: lastFreeDay(), plans: plansFor(u).map(p => ({ id: p.id, t: p.t, e: p.e, price: p.price, note: p.note || "", url: isFree() ? null : payLink(u, p) })) }];
   }
   if (!u.consent) return [403, { error: "consent" }];
   if (action === "kv") {
@@ -767,9 +769,10 @@ function addGift(u, days) { const base = [u.gift || "", u.paid || "", mskDay(), 
 async function sendInvite(chat, u) {
   const link = refLink(u); if (!link) return tg("sendMessage", { chat_id: chat, text: "Ссылка-приглашение скоро появится 🖤" });
   const n = +u.refn || 0;
-  return tg("sendMessage", { chat_id: chat, parse_mode: "HTML", disable_web_page_preview: true, text: T.invite(link, n, u.gift && u.gift >= mskDay() ? ru(u.gift) : "", isFree()), reply_markup: { inline_keyboard: [[{ text: "📤 Отправить другу", url: `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(T.inviteShare)}` }]] } });
+  return tg("sendMessage", { chat_id: chat, parse_mode: "HTML", disable_web_page_preview: true, text: PAID() ? T.invite(link, n, u.gift && u.gift >= mskDay() ? ru(u.gift) : "", isFree()) : T.inviteFree(link, n), reply_markup: { inline_keyboard: [[{ text: "📤 Отправить другу", url: `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(PAID() ? T.inviteShare : T.inviteShareFree)}` }]] } });
 }
-async function refFriend(u) { // неделя другу, который пришёл по ссылке
+async function refFriend(u) { // неделя другу, который пришёл по ссылке (только в платном режиме)
+  if (!PAID()) return;
   if (!u || !u.ref || +u.ref === +u.id || flags(u).has("rg")) return;
   const f = flags(u); f.add("rg"); setFlags(u, f); const until = addGift(u, WEEK); await db().putUser(u);
   await tg("sendMessage", { chat_id: u.id, parse_mode: "HTML", text: T.refWelcome(ru(until), isFree()) });
@@ -779,6 +782,7 @@ async function refCredit(u) { // неделя тому, кто пригласи�
   const f = flags(u); f.add("rf"); setFlags(u, f); await db().putUser(u);
   const inv = await db().getUser(+u.ref); if (!inv || !inv.consent) return;
   inv.refn = (+inv.refn || 0) + 1;
+  if (!PAID()) { const nmf = (u.name || "").split(" ")[0] || "Друг"; inv.refs = [nmf].concat(String(inv.refs || "").split(",").filter(Boolean)).slice(0, 30).join(","); await db().putUser(inv); return tg("sendMessage", { chat_id: inv.id, parse_mode: "HTML", text: T.refThanks(esc(nmf)) }); }
   // в бесплатном ноябре неделя за каждого вступившего друга, но не больше 4 недель
   if (isFree() && (+inv.refnov || 0) >= 4) { const nm0 = (u.name || "").split(" ")[0] || "Друг"; inv.refs = [nm0].concat(String(inv.refs || "").split(",").filter(Boolean)).slice(0, 30).join(","); await db().putUser(inv); return tg("sendMessage", { chat_id: inv.id, parse_mode: "HTML", text: T.refMax(esc(nm0)) }); }
   if (isFree()) inv.refnov = (+inv.refnov || 0) + 1;
@@ -825,7 +829,7 @@ async function setup(selfUrl, fid) {
   const hook = env("TG_API") && fid ? `${TG_BASE()}/hook/${fid}` : selfUrl + "?a=tg";
   out.hook = hook;
   out.webhook = await tg("setWebhook", { url: hook, secret_token: env("WEBHOOK_SECRET"), allowed_updates: ["message", "callback_query", "chat_join_request"], drop_pending_updates: true });
-  out.commands = await tg("setMyCommands", { commands: [{ command: "start", description: "Вступить в клуб" }, { command: "app", description: "Открыть приложение" }, { command: "club", description: "Канал клуба" }, { command: "plans", description: "Подписка" }, { command: "invite", description: "Пригласить друга" }, { command: "remind", description: "Напоминания о челлендже" }, { command: "help", description: "Вопросы и поддержка" }, { command: "delete", description: "Удалить мои данные" }] });
+  out.commands = await tg("setMyCommands", { commands: [{ command: "start", description: "Вступить в клуб" }, { command: "app", description: "Открыть приложение" }, { command: "club", description: "Канал клуба" }, ...(PAID() ? [{ command: "plans", description: "Подписка" }] : []), { command: "invite", description: "Пригласить друга" }, { command: "remind", description: "Напоминания о челлендже" }, { command: "help", description: "Вопросы и поддержка" }, { command: "delete", description: "Удалить мои данные" }] });
   out.description = await tg("setMyDescription", { description: T.botDescription });
   out.menu = await tg("setChatMenuButton", { menu_button: { type: "web_app", text: "Открыть клуб", web_app: { url: APP_URL() } } });
   if (ADMIN()) out.adminCmds = await tg("setMyCommands", { scope: { type: "chat", chat_id: ADMIN() }, commands: [{ command: "start", description: "Начать и показать кнопки админа" }, { command: "admin", description: "Все команды" }] });
