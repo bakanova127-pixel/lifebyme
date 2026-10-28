@@ -84,6 +84,16 @@ function parseSeg(T,base,defDate){const rm=new Set();const W=i=>T[i]?T[i].w:"";l
 const CATW=[["food",/еда|продукт|кофе|обед|ужин|завтрак|кафе|ресторан|доставк|пицц|суши|магазин|перекус/],["beauty",/маникюр|педикюр|ресниц|бров|стрижк|парикмахер|косметик|уход|салон|массаж/],["clothes",/одежд|плать|обув|кроссовк|джинс|куртк|футболк|свитер/],["rent",/аренд|квартир|ипотек|жкх|коммунал/],["home",/дом|посуд|уборк|ремонт|мебел/],["transport",/такси|бензин|метро|автобус|проезд|машин|парковк|автошкол/],["fun",/кино|театр|концерт|бар|развлеч|игр|подписк/],["health",/врач|зуб|стоматолог|аптек|лекарств|анализ|клиник|витамин/],["gifts",/подар/],["study",/курс|книг|обучен|урок|школ|репетитор/]];
 const MONEYV=/^(потратил[аи]?|потрачено|заплатил[аи]?|отдал[аи]?|купил[аи]?|расход|минус|оплатил[аи]?)$/;
 function numFrom(str){const m=str.replace(/(\d)\s(?=\d{3}(?!\d))/g,"$1").match(/(\d+(?:[.,]\d+)?)\s*(тыс[а-я]*\.?|к(?![а-я]))?/i);if(!m)return null;let v=parseFloat(m[1].replace(",","."));if(m[2])v*=1000;return Math.round(v)}
+/* доходы: «получила 5000 за урок», «зарплата 60000», «перевели 3000», «плюс 2000 за заказ» */
+const INCW=/(получил[аи]?|заработал[аи]?|зарплат[аыу]?|аванс|преми[яюи]|доход|пришл[оаи]|перевел[аи]\s+мне|мне\s+перевел[аи]?|кэшбэк|кешбэк|кешбек|вернули|(^|\s)плюс(?=\s+\d))/;
+const INC_SRC=[["salary",/(зарплат|аванс|преми)/],["clients",/(клиент|заказ|урок|ученик|заняти|консульт|проект)/],["blog",/(блог|реклам|инстаграм|телеграм|канал|интеграц)/],["gift",/(подар)/]];
+function parseIncome(text){const out=[];
+  for(const ch of String(text||"").split(/[\n;]+|\.\s+/)){const low=ch.toLowerCase().replace(/ё/g,"е").trim();if(!low||!INCW.test(low))continue;
+    const amount=numFrom(low);if(!amount||amount<=0||amount>100000000)continue;
+    let note=low.replace(INCW,"").replace(/(\d)\s(?=\d{3}(?!\d))/g,"$1").replace(/\d+(?:[.,]\d+)?\s*(тыс[а-я]*\.?|к(?![а-я]))?/g,"").replace(/(рублей|рубля|рубль|руб\.?|₽)/g,"").replace(/\s+/g," ").trim().replace(/^(на|за|от)\s+/,"").trim();
+    const src=(INC_SRC.find(([,r])=>r.test(low))||["other_i"])[0];
+    out.push({inc:true,amount,src,note:note?note[0].toUpperCase()+note.slice(1):""})}
+  return out}
 function parseMoney(text){const out=[];
   for(const ch of String(text||"").split(/[\n;]+|,\s*(?=потрат|заплат|купил|оплат)|\.\s+|\sи\s(?=потрат|заплат|купил|оплат)/i)){const low=ch.toLowerCase().replace(/ё/g,"е").trim();if(!low)continue;
     const words=low.split(/\s+/);const bare=(/^[а-яa-z\s-]+\s\d[\d\s]*(\s*(тыс[а-я]*|к))?$/.test(low)||/^\d[\d\s]*(\s*(тыс[а-я]*|к))?\s+(на\s+|за\s+)?[а-яa-z\s-]+$/.test(low))&&!/(^|\s)(в|во|к|ко|до|с|по|на)\s+\d|час|утр|вечер|минут|числ|день|дня|дней|раз/.test(low);const isMoney=words.some(w=>MONEYV.test(w))||/(руб|₽|(^|\s)р(\s|$))/.test(low)||bare;if(!isMoney)continue;
@@ -99,7 +109,7 @@ function cleanTask(t){return t.replace(/,?\s*(и\s+)?(добавь|запиши|
   .replace(/,?\s*(и\s+)?напомн(и|ю|ите|ить)(\s+мне)?(\s+об этом)?(\s+(за|на)\s+((\d+|один|одну|два|две|три)\s+)?(часа?|день|дня|сутки|минут[ау]?|полчаса|пятнадцать минут))?(\s*,?\s*(что|чтобы|о том,? что))?/gi,"")
   .replace(/(^|[\s,])(накануне|за сутки)(?=$|[\s,.])/gi,"$1").replace(/\s+/g," ").replace(/^[\s,]+|[\s,]+$/g,"").trim()}
 function parseAll(text,today){const money=[],tasks=[];const rem=remOf(text);let rest=[];
-  for(const sent of String(text||"").split(/[\n;!?]+|\.(?=\s|$)/)){if(!sent.trim())continue;const m=parseMoney(sent);if(m.length)money.push(...m);else rest.push(cleanTask(sent))}
+  for(const sent of String(text||"").split(/[\n;!?]+|\.(?=\s|$)/)){if(!sent.trim())continue;const inc=parseIncome(sent);if(inc.length){money.push(...inc);continue}const m=parseMoney(sent);if(m.length)money.push(...m);else rest.push(cleanTask(sent))}
   const t=rest.filter(Boolean).join(". ");if(t)for(const x of parseDictation(t,today,today))if(x.t&&x.t.length>1){if(x.tm&&!/утр|ночи|\d:\d/.test(t.toLowerCase())){const h=+x.tm.slice(0,2);if(h>=1&&h<=7)x.tm=String(h+12).padStart(2,"0")+x.tm.slice(2)}tasks.push(Object.assign(x,{rem:!x.rep?rem:0}))}
   return {money,tasks}}
-module.exports={parseDictation,parseMoney,remOf,parseAll};
+module.exports={parseDictation,parseMoney,parseIncome,remOf,parseAll};

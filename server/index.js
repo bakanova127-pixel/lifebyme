@@ -360,6 +360,7 @@ async function adminCmd(text, chat, u) {
   return null;
 }
 // ---------- надиктовка в бот: голос или текст с «+» → дела, повторы, траты ----------
+const INC_L = { salary: "Зарплата", clients: "Клиенты и заказы", blog: "Блог и соцсети", gift: "Подарки", other_i: "Доход" };
 const CAT_L = { food: "🍽 Еда", beauty: "💄 Красота", clothes: "👗 Одежда", rent: "🔑 Жильё", home: "🏠 Дом", transport: "🚕 Транспорт", fun: "🎉 Развлечения", health: "💊 Здоровье", gifts: "🎁 Подарки", study: "📚 Обучение", other: "✨ Другое" };
 const REP_L = { daily: "каждый день", weekdays: "по будням", weekly: "каждую неделю", monthly: "каждый месяц" };
 const WDS = ["вс", "пн", "вт", "ср", "чт", "пт", "сб"];
@@ -387,9 +388,12 @@ async function stt(fileId) {
 function dictPreview(p) {
   const lines = [];
   p.tasks.forEach(x => lines.push(x.rep ? `🔁 ${esc(x.t)}${x.tm ? " · " + x.tm : ""} — ${x.rep === "weekly" && x.dows.length ? x.dows.map(d => WDS[d]).join(", ") : REP_L[x.rep] || ""}` : `📅 ${esc(x.t)} — ${dLabel(x.date)}${x.tm ? " в " + x.tm : ""}${x.rem ? " · 🔔 " + (x.rem === 1440 ? "напомню накануне в 10:00" : x.tm ? "напомню " + REM_T[x.rem] : "напомню в этот день в 10:00") : ""}`));
-  p.money.forEach(x => lines.push(`💸 ${x.amount.toLocaleString("ru-RU")} ₽ — ${CAT_L[x.cat]}${x.note ? " · " + esc(x.note) : ""}`));
+  p.money.forEach(x => lines.push(x.inc ? `💰 +${x.amount.toLocaleString("ru-RU")} ₽ — ${INC_L[x.src] || "доход"}${x.note ? " · " + esc(x.note) : ""}` : `💸 ${x.amount.toLocaleString("ru-RU")} ₽ — ${CAT_L[x.cat]}${x.note ? " · " + esc(x.note) : ""}`));
   return lines.join("\n");
 }
+// похоже ли сообщение на дело или деньги (иначе это письмо Яне)
+function looksLikeEntry(t) { const low = t.toLowerCase().replace(/ё/g, "е"); if (low.length > 300) return false;
+  return /(\d\s*(р|руб|₽|тыс|к)(\s|$|\.)|потрат|заплат|купил|оплатил|получил|заработал|зарплат|перевел|доход|расход|плюс\s+\d)/.test(low) || /^(завтра|сегодня|послезавтра|в понедельник|во вторник|в среду|в четверг|в пятницу|в субботу|в воскресенье|каждый|каждую|каждое|запиши|добавь|купить|позвонить|записаться|сделать|отправить|оплатить|забрать|встреча|созвон)/.test(low) || /напомни/.test(low); }
 async function dictStart(chat, u, text, heard) {
   const p = parseAll(text, mskDay());
   if (!p.tasks.length && !p.money.length) return tg("sendMessage", { chat_id: chat, parse_mode: "HTML", text: `${heard ? `🎤 Услышала: «${esc(text)}»\n\n` : ""}Не нашла здесь дел или трат. Скажи, например: «завтра в 6 парикмахер, напомни за час» или «потратила 500 на такси».` });
@@ -409,7 +413,7 @@ async function dictApply(u) {
     const d = dayOf(x.date || today); d.tasks = (d.tasks || []).concat(Object.assign({ t: x.t, d: false, tm: x.tm || "" }, x.rem ? { rem: x.rem } : {})); nT++;
     if (x.rem && db().remAdd) { const at = remAt(x.date || today, x.tm, x.rem); if (at > Date.now()) await db().remAdd(u.id, { id: `b${(x.date || today).replace(/-/g, "")}${crypto.randomBytes(3).toString("hex")}`, at, text: remText(x) }); }
   }
-  for (const x of p.money) { const d = dayOf(today); d.exp = (d.exp || []).concat([[x.amount, x.cat, x.note || ""]]); nM++; }
+  for (const x of p.money) { const d = dayOf(today); if (x.inc) d.inc = (d.inc || []).concat([[x.amount, x.note || "", x.src || "other_i"]]); else d.exp = (d.exp || []).concat([[x.amount, x.cat, x.note || ""]]); nM++; }
   for (const [k, d] of Object.entries(days)) put["d_" + k] = JSON.stringify(d);
   await db().kvPut(u.id, put, del);
   return { nT, nM };
@@ -476,6 +480,11 @@ async function onMessage(m) {
     if (mm && text) { const r = await tg("sendMessage", { chat_id: +mm[1], text: "💌 " + text }); return tg("sendMessage", { chat_id: chat, text: r.ok ? "Отправила ✅" : "Не получилось отправить" }); }
     return;
   }
+  if (text && !text.startsWith("/") && looksLikeEntry(text)) {
+    const p = parseAll(text, mskDay());
+    if (p.tasks.length || p.money.length) { await db().kvPut(u.id, { _dict: JSON.stringify(p), _dmsg: text.slice(0, 3000) });
+      return tg("sendMessage", { chat_id: chat, parse_mode: "HTML", text: `Записать?\n\n${dictPreview(p)}`, reply_markup: { inline_keyboard: [[{ text: "✅ Записать", callback_data: "dadd" }], [{ text: "💬 Нет, это сообщение Яне", callback_data: "dmsg" }]] } }); }
+  }
   if (text && !text.startsWith("/") && ADMIN()) {
     await tg("sendMessage", { chat_id: ADMIN(), parse_mode: "HTML", text: `💬 <b>${esc(u.name)}</b>${u.username ? " @" + esc(u.username) : ""}\nid: ${u.id}\n\n${esc(text)}\n\n<i>Ответь на это сообщение — ответ уйдёт человеку</i>` });
     return tg("sendMessage", { chat_id: chat, text: T.supportSent });
@@ -519,7 +528,10 @@ async function onCallback(cq) {
   }
   if (d === "fbskip") { const f = flags(u); f.delete("fbt"); setFlags(u, f); await db().putUser(u); await tg("editMessageReplyMarkup", { chat_id: chat, message_id: m.message_id, reply_markup: { inline_keyboard: [] } }); return tg("sendMessage", { chat_id: chat, text: T.fbThanks }); }
   if (d === "invite") return sendInvite(chat, u);
-  if (d === "dadd") { const r = await dictApply(u); await tg("editMessageReplyMarkup", { chat_id: chat, message_id: m.message_id, reply_markup: { inline_keyboard: [] } }); if (!r) return tg("sendMessage", { chat_id: chat, text: "Это уже записано или устарело. Надиктуй ещё раз 🎤" }); return tg("sendMessage", { chat_id: chat, text: `Записала ✓ ${[r.nT ? `дел: ${r.nT}` : "", r.nM ? `трат: ${r.nM}` : ""].filter(Boolean).join(", ")}`, reply_markup: { inline_keyboard: [[btnApp("Открыть приложение")]] } }); }
+  if (d === "dadd") { const r = await dictApply(u); await tg("editMessageReplyMarkup", { chat_id: chat, message_id: m.message_id, reply_markup: { inline_keyboard: [] } }); if (!r) return tg("sendMessage", { chat_id: chat, text: "Это уже записано или устарело. Надиктуй ещё раз 🎤" }); return tg("sendMessage", { chat_id: chat, text: `Записала ✓ ${[r.nT ? `дел: ${r.nT}` : "", r.nM ? `в деньгах: ${r.nM}` : ""].filter(Boolean).join(", ")}`, reply_markup: { inline_keyboard: [[btnApp("Открыть приложение")]] } }); }
+  if (d === "dmsg") { const kv = await db().kvAll(u.id); const t = kv._dmsg || ""; await db().kvPut(u.id, {}, ["_dict", "_dmsg"]); await tg("editMessageReplyMarkup", { chat_id: chat, message_id: m.message_id, reply_markup: { inline_keyboard: [] } });
+    if (t && ADMIN()) await tg("sendMessage", { chat_id: ADMIN(), parse_mode: "HTML", text: `💬 <b>${esc(u.name)}</b>${u.username ? " @" + esc(u.username) : ""}\nid: ${u.id}\n\n${esc(t)}\n\n<i>Ответь на это сообщение — ответ уйдёт человеку</i>` });
+    return tg("sendMessage", { chat_id: chat, text: T.supportSent }); }
   if (d === "dno") { await db().kvPut(u.id, {}, ["_dict"]); await tg("editMessageReplyMarkup", { chat_id: chat, message_id: m.message_id, reply_markup: { inline_keyboard: [] } }); return tg("sendMessage", { chat_id: chat, text: "Удалила, ничего не записываю." }); }
   if (d === "dfix") { await db().kvPut(u.id, {}, ["_dict"]); await tg("editMessageReplyMarkup", { chat_id: chat, message_id: m.message_id, reply_markup: { inline_keyboard: [] } }); return tg("sendMessage", { chat_id: chat, text: "Скажи или напиши ещё раз, как правильно. Например: «21 ноября стоматолог в 15:00, напомни за день» 🎤" }); }
   if (d === "delyes") { await db().deleteUser(u.id); await tg("editMessageReplyMarkup", { chat_id: chat, message_id: m.message_id, reply_markup: { inline_keyboard: [] } }); return tg("sendMessage", { chat_id: chat, text: T.delDone }); }
