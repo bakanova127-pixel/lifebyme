@@ -1788,7 +1788,7 @@ function careHealth(app){const care=S.care;
     el("p",{class:"muted",style:"margin:0;font-size:.8rem"},"Дневник помогает рассказать врачу историю, но не ставит диагнозов. При тревожных симптомах обращайся к врачу."));app.append(hc);}
 function setSettings(p){S.settings=Object.assign({},S.settings,p);store.set("settings",S.settings);render()}
 /* ---------- модули: всё, кроме челленджа и личных привычек, включается во вкладке «Я» и живёт за сердечком ♡ ---------- */
-const MODS=[["train","🏋️","Тренировки","домашние тренировки с таймером","body:training"],["tasks","📅","Дела и даты","главное дело дня, список дел, повторы, дни рождения","plan"],["water","💧","Вода","стаканы воды за день","plan"],["sleep","😴","Сон","время отбоя и подъёма","plan"],["week","🗓","Неделя","план и итоги недели","week"],["money","💸","Деньги","расходы, доходы, бюджет, копилки","money"],["dream","✨","Мечты","доска желаний, цели года, книги","dream"],["care","🤍","Забота о себе","цикл, вес, здоровье","body"]];
+const MODS=[["train","🏋️","Тренировки","домашние тренировки с таймером","body:training"],["tasks","📅","Дела и даты","главное дело дня, список дел, повторы, дни рождения","plan"],["water","💧","Вода","стаканы воды за день","plan"],["sleep","😴","Сон","время отбоя и подъёма","plan"],["money","💸","Деньги","расходы, доходы, бюджет, копилки","money"],["dream","✨","Мечты","доска желаний, цели года, книги","dream"],["care","🤍","Забота о себе","цикл, вес, здоровье","body"]];
 const MODTABS=["plan","week","dream","money","body"],MODTAB_OF={week:"week",dream:"dream",money:"money",body:"care"};
 const QMOD={tasks:"tasks",week:"week",dream:"dream",money:"money",training:"train",cycle:"care",weight:"care",beauty:"care",doctors:"care",health:"care"};
 /* у тех, кто уже пользовался приложением, включаем модули, где есть их данные — ничего не пропадёт */
@@ -1803,7 +1803,7 @@ function modsDerive(){const ds=Object.values(S.days||{}),has=a=>Array.isArray(a)
     care:!!c.cycleOn||has(cr.procs)||has(cr.visits)||has(cr.ill)||has((S.weight||{}).entries)||has((S.style||{}).items)}}
 function mods(){return (S.settings&&S.settings.mods)||{}}
 function modOn(k){return !!mods()[k]}
-function tabOk(t){if(t==="plan")return modOn("tasks")||modOn("water")||modOn("sleep");return t==="body"?(modOn("care")||(modOn("train")&&ui.care==="training")):modOn(MODTAB_OF[t])}
+function tabOk(t){if(t==="week")return false;if(t==="plan")return modOn("tasks")||modOn("water")||modOn("sleep");return t==="body"?(modOn("care")||(modOn("train")&&ui.care==="training")):modOn(MODTAB_OF[t])}
 function goCare(k){ui.heart=false;ui.wkEdit=false;ui.askDel=null;tab="body";ui.care=k;render();window.scrollTo(0,0)}
 function modOpen(to){if(to.startsWith("body:"))goCare(to.slice(5));else{if(to==="plan")cur=TODAY;show(to)}window.scrollTo(0,0)}
 function modsCard(){const c=cfg();const card=el("div",{class:"card",id:"mods"},el("h2",{},"Мои разделы"),el("p",{class:"muted",style:"margin:0;font-size:.88rem"},"Включи то, чем правда будешь пользоваться. Включённое появится под сердечком ♡ вверху. Выключенное просто скрыто — записи не пропадают."));
@@ -1818,7 +1818,6 @@ function modsCard(){const c=cfg();const card=el("div",{class:"card",id:"mods"},e
 function heartTiles(){const c=cfg();const t=[];
   if(modOn("tasks")||modOn("water")||modOn("sleep"))t.push(["plan","📅","Мой день",[modOn("tasks")?"дела":"",modOn("water")?"вода":"",modOn("sleep")?"сон":""].filter(Boolean).join(", ")]);
   if(modOn("train"))t.push(["body:training","🏋️","Тренировки","домашние тренировки"]);
-  if(modOn("week"))t.push(["week","🗓","Неделя","план недели"]);
   if(modOn("money"))t.push(["money","💸","Деньги","расходы и бюджет"]);
   if(modOn("dream"))t.push(["dream","✨","Мечты","доска и цели года"]);
   if(modOn("care")){if(c.sex!=="m")t.push(["body:cycle","🩸","Цикл","фаза и прогноз"]);t.push(["body:weight","⚖️","Вес","динамика"]);t.push(["body","🤍","Забота о себе","всё о здоровье"])}
@@ -2125,7 +2124,7 @@ function renderMe(app){const c=cfg();app.append(el("div",{class:"hero"},el("div"
     row("День рождения",bi?bi.date:"—"),
     el("button",{class:"btn ghost",type:"button",onclick:()=>{ob={step:1,data:Object.assign({},DEF,S.settings)};renderOb()}},"Изменить настройки")));
   app.append(notifyCard());
-  app.append(el("p",{class:"muted",style:"font-size:.8rem;text-align:center;margin:8px 0 0"},(SRV.on?"Данные хранятся на сервере клуба в России. Цикл, вес и самочувствие — только на этом телефоне.":inTG?"Данные сохраняются в твоём Telegram. Цикл, вес и самочувствие — только на этом телефоне.":"Превью: данные хранятся только в этом браузере.")+" · версия 32"))}
+  app.append(el("p",{class:"muted",style:"font-size:.8rem;text-align:center;margin:8px 0 0"},(SRV.on?"Данные хранятся на сервере клуба в России. Цикл, вес и самочувствие — только на этом телефоне.":inTG?"Данные сохраняются в твоём Telegram. Цикл, вес и самочувствие — только на этом телефоне.":"Превью: данные хранятся только в этом браузере.")+" · версия 33"))}
 
 /* ================= boot ================= */
 async function boot(){document.body.dataset.skin="kar";render();
