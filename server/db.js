@@ -7,7 +7,9 @@ function memoryDb() {
     async getUser(id) { const u = users.get(+id); return u ? { ...u } : null; },
     async putUser(u) { users.set(+u.id, { ...u, id: +u.id }); },
     async listUsers() { return [...users.values()].map(u => ({ ...u })); },
-    async clubJoin(ch, uid, name) { members.set(ch + "|" + uid, { ch, uid: +uid, name }); },
+    async clubJoin(ch, uid, name) { const k = ch + "|" + uid; members.set(k, Object.assign({}, members.get(k) || {}, { ch, uid: +uid, name })); },
+    async clubPatch(ch, uid, fn) { const k = ch + "|" + uid; const m = members.get(k) || { ch, uid: +uid, name: "" }; const r = fn(m); members.set(k, m); return r; },
+    async clubRaw(ch) { return [...members.values()].filter(m => m.ch === ch).map(m => { const mk = {}; for (const x of marks.values()) if (x.ch === ch && x.uid === m.uid) mk[x.day] = x.v; return { ...m, marks: mk }; }); },
     async clubMembers(ch) { return [...members.values()].filter(m => m.ch === ch).map(m => ({ ...m })); },
     async clubMark(ch, day, uid, v) { const k = ch + "|" + day + "|" + uid; if (v == null) marks.delete(k); else marks.set(k, { ch, day, uid: +uid, v, at: Date.now() }); },
     async clubDayMarks(ch, day) { return [...marks.values()].filter(m => m.ch === ch && m.day === day).map(m => ({ ...m })); },
@@ -15,8 +17,9 @@ function memoryDb() {
       const ms = [...members.values()].filter(m => m.ch === ch);
       const today = [...marks.values()].filter(m => m.ch === ch && m.day === day && m.v === 1);
       const names = today.map(t => (ms.find(m => m.uid === t.uid) || {}).name || "").filter(Boolean);
-      const board = ms.map(m => ({ uid: m.uid, name: m.name || "", n: [...marks.values()].filter(x => x.ch === ch && x.uid === m.uid && x.v === 1).length })).filter(b => b.name).sort((a, b) => b.n - a.n);
-      const feed = today.map(t => ({ uid: t.uid, name: (ms.find(m => m.uid === t.uid) || {}).name || "", at: t.at || 0 })).filter(f => f.name).sort((a, b) => b.at - a.at);
+      const ex = m => ({ av: m.av || "", gr: m.gr || 0, g: Object.values(m.gg || {}).reduce((a, l) => a + l.length, 0) });
+      const board = ms.map(m => Object.assign({ uid: m.uid, name: m.name || "", n: [...marks.values()].filter(x => x.ch === ch && x.uid === m.uid && x.v === 1).length }, ex(m))).filter(b => b.name).sort((a, b) => b.n - a.n);
+      const feed = today.map(t => { const m = ms.find(x => x.uid === t.uid) || {}; return Object.assign({ uid: t.uid, name: m.name || "", at: t.at || 0 }, ex(m)); }).filter(f => f.name).sort((a, b) => b.at - a.at);
       return { members: ms.length, today: today.length, names, board, feed };
     },
     async remAdd(uid, r) { rems.set(uid + "|" + r.id, { uid: +uid, ...r }); },
@@ -90,6 +93,8 @@ function ydbDb() {
       await q(`DECLARE $ch AS Utf8; DECLARE $uid AS Uint64; DECLARE $name AS Utf8; UPSERT INTO club_members (ch, uid, name) VALUES ($ch, $uid, $name);`,
         { $ch: T.utf8(ch), $uid: T.uint64(+uid), $name: T.utf8(name || "") });
     },
+    async clubPatch(ch, uid, fn) { return fn({}); }, // в YDB подарки и аватарки не хранятся (по умолчанию используется Object Storage)
+    async clubRaw(ch) { return (await this.clubMembers(ch)).map(m => ({ ...m })); },
     async clubMembers(ch) {
       let out = [], last = 0;
       for (let i = 0; i < 100; i++) {
@@ -211,13 +216,16 @@ function s3Db(bucket) {
     async listUsers() { const ks = (await list("u/")).filter(k => k.endsWith(".json")); return (await pmap(ks, 16, get)).filter(Boolean); },
     async clubJoin(ch, uid, name) { const k = chk(ch) + uid + ".json"; const m = (await get(k)) || { uid: +uid, marks: {} }; m.name = name || m.name || ""; m.uid = +uid; await put(k, m); },
     async clubMembers(ch) { const ks = await list(chk(ch)); return (await pmap(ks, 16, get)).filter(Boolean).map(m => ({ ch, uid: +m.uid, name: m.name || "" })); },
+    async clubPatch(ch, uid, fn) { const k = chk(ch) + uid + ".json"; const m = (await get(k)) || { uid: +uid, name: "", marks: {} }; const r = fn(m); m.uid = +uid; await put(k, m); return r; },
+    async clubRaw(ch) { return (await pmap(await list(chk(ch)), 16, get)).filter(Boolean); },
     async clubMark(ch, day, uid, v) { const k = chk(ch) + uid + ".json"; const m = (await get(k)) || { uid: +uid, name: "", marks: {} }; m.marks = m.marks || {}; m.times = m.times || {}; if (v == null) { delete m.marks[day]; delete m.times[day]; } else { m.marks[day] = v; if (v === 1) m.times[day] = Date.now(); } await put(k, m); },
     async clubDayMarks(ch, day) { const ks = await list(chk(ch)); return (await pmap(ks, 16, get)).filter(m => m && m.marks && m.marks[day] != null).map(m => ({ uid: +m.uid, v: m.marks[day] })); },
     async clubStats(ch, day) {
       const ms = (await pmap(await list(chk(ch)), 16, get)).filter(Boolean);
       const today = ms.filter(m => m.marks && m.marks[day] === 1);
-      const board = ms.map(m => ({ uid: +m.uid, name: m.name || "", n: Object.values(m.marks || {}).filter(v => v === 1).length })).filter(b => b.name).sort((a, b) => b.n - a.n);
-      const feed = today.filter(m => m.name).map(m => ({ uid: +m.uid, name: m.name, at: (m.times || {})[day] || 0 })).sort((a, b) => b.at - a.at);
+      const ex = m => ({ av: m.av || "", gr: m.gr || 0, g: Object.values(m.gg || {}).reduce((a, l) => a + l.length, 0) });
+      const board = ms.map(m => Object.assign({ uid: +m.uid, name: m.name || "", n: Object.values(m.marks || {}).filter(v => v === 1).length }, ex(m))).filter(b => b.name).sort((a, b) => b.n - a.n);
+      const feed = today.filter(m => m.name).map(m => Object.assign({ uid: +m.uid, name: m.name, at: (m.times || {})[day] || 0 }, ex(m))).sort((a, b) => b.at - a.at);
       return { members: ms.length, today: today.length, names: today.map(m => m.name).filter(Boolean), board, feed };
     },
     async kvAll(uid) { return (await get(`kv/${+uid}.json`)) || {}; },

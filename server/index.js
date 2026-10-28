@@ -28,6 +28,15 @@ const setDb = d => { DB = d; };
 
 // ---------- helpers ----------
 let tgFetch = (url, opts) => fetch(url, opts);
+// обезличенный id участника для ленты (настоящий Telegram id другим не показываем)
+const pid = uid => crypto.createHmac("sha256", env("WEBHOOK_SECRET") || TOKEN() || "lbm").update(String(+uid)).digest("hex").slice(0, 12);
+async function tgPhoto(chat, buf, caption) {
+  try {
+    const fd = new FormData(); fd.append("chat_id", String(chat)); if (caption) fd.append("caption", caption);
+    fd.append("photo", new Blob([buf], { type: "image/jpeg" }), "life-by-me.jpg");
+    const r = await tgFetch(`${TG_BASE()}/bot${TOKEN()}/sendPhoto`, { method: "POST", body: fd }); const j = await r.json(); if (!j.ok) console.log("tg photo", JSON.stringify(j).slice(0, 300)); return j;
+  } catch (e) { console.log("tg photo", e && e.message); return { ok: false }; }
+}
 const setTgFetch = f => { tgFetch = f; };
 async function tg(method, body) {
   let j = {};
@@ -548,11 +557,29 @@ async function api(action, body) {
     return [200, { ok: true, n: list.length }];
   }
   if (action === "club") {
+    const op = body.op;
+    // голосование за следующую привычку — тот же счёт, что и кнопки в боте
+    if (op === "vote" || op === "votes") {
+      const cfg = await clubFull(); const vp = (cfg.posts || []).find(p => p.id === String(body.pid || "") && p.vote); if (!vp) return [404, { error: "vote" }];
+      if (op === "vote" && vp.vote[+body.i] != null) await db().clubJoin("vote|" + vp.id, u.id, String(+body.i));
+      const ms = await db().clubMembers("vote|" + vp.id); const mine = ms.find(m => +m.uid === +u.id);
+      return [200, { opts: vp.vote, n: vp.vote.map((o, i) => ms.filter(m => m.name === String(i)).length), mine: mine ? +mine.name : null }];
+    }
+    // запись на следующий челлендж заранее
+    if (op === "reg" || op === "regs") {
+      const k = "reg|" + String(body.start || "").slice(0, 10); if (!/^reg\|\d{4}-\d{2}-\d{2}$/.test(k)) return [400, { error: "start" }];
+      if (op === "reg") await db().clubJoin(k, u.id, (user.first_name || "").slice(0, 30));
+      const ms = await db().clubMembers(k); return [200, { n: ms.length, me: ms.some(m => +m.uid === +u.id) }];
+    }
     const ch = String(body.ch || "").slice(0, 60); if (!ch) return [400, { error: "ch" }];
     const day = /^\d{4}-\d{2}-\d{2}$/.test(body.day || "") ? body.day : mskDay();
     const nm = (user.first_name || "").slice(0, 30);
-    if (body.op === "join") await db().clubJoin(ch, u.id, nm);
-    if (body.op === "mark") {
+    if (op === "card") { // карточка для сторис: приложение рисует картинку, бот присылает её в чат
+      const img = String(body.img || "").replace(/^data:image\/\w+;base64,/, ""); if (!img || img.length > 4e6) return [400, { error: "img" }];
+      const r = await tgPhoto(u.id, Buffer.from(img, "base64"), T.cardCaption()); return [200, { ok: !!r.ok }];
+    }
+    if (op === "join") await db().clubJoin(ch, u.id, nm);
+    if (op === "mark") {
       const c = (await clubConfig()).find(x => x.id === ch);
       const v = body.v === 1 || body.v === 0 ? body.v : null;
       if (c && c.win && v !== null) { // отметка только в окне времени и только за сегодня
@@ -561,9 +588,24 @@ async function api(action, body) {
       }
       await db().clubJoin(ch, u.id, nm); await db().clubMark(ch, day, u.id, v);
     }
-    const st = await db().clubStats(ch, body.op === "stats" ? day : mskDay());
-    st.board = st.board.map(b => ({ name: b.name, n: b.n, me: b.uid === u.id }));
-    st.feed = (st.feed || []).slice(0, 50).map(f => ({ name: f.name, at: f.at, me: f.uid === u.id }));
+    const today = mskDay();
+    if (op === "give") { // подарить цветок: 5 в день, одному человеку — один раз в день, только тем, кто отметился сегодня
+      const raw = await db().clubRaw(ch); const to = raw.find(m => pid(m.uid) === String(body.to || ""));
+      if (!to || +to.uid === +u.id || !(to.marks && to.marks[today] === 1)) return [409, { error: "to" }];
+      const res = await db().clubPatch(ch, u.id, m => { m.gg = m.gg || {}; for (const d of Object.keys(m.gg)) if (d < addDays(today, -40)) delete m.gg[d]; const l = m.gg[today] || []; if (l.length >= 5 || l.includes(+to.uid)) return false; m.gg[today] = l.concat(+to.uid); if (!m.name) m.name = nm; return true; });
+      if (res) { await db().clubPatch(ch, to.uid, m => { m.gr = (m.gr || 0) + 1; }); const tu = await db().getUser(to.uid); if (tu) { tu.bq = (tu.bq || 0) + 1; await db().putUser(tu); } }
+    }
+    const st = await db().clubStats(ch, op === "stats" ? day : today);
+    const av = typeof body.av === "string" && /^(a:\d{1,2}|tg:https:\/\/t\.me\/i\/userpic\/[\w\/.-]{1,200})$/.test(body.av) ? body.av : null;
+    const meB = st.board.find(b => b.uid === u.id);
+    if (av && meB && meB.av !== av) { await db().clubPatch(ch, u.id, m => { m.av = av; }); meB.av = av; st.feed.forEach(f => { if (f.uid === u.id) f.av = av; }); }
+    const raw = op === "give" || st.feed.length ? await db().clubRaw(ch) : [];
+    const mine = (raw.find(m => +m.uid === +u.id) || {}); const given = ((mine.gg || {})[today] || []).map(Number);
+    const me = await db().getUser(u.id);
+    const top = st.board.filter(b => b.g > 0).sort((a, b) => b.g - a.g).slice(0, 10).map(b => ({ name: b.name, av: b.av, g: b.g, me: b.uid === u.id }));
+    st.board = st.board.map(b => ({ name: b.name, n: b.n, av: b.av, gr: b.gr, me: b.uid === u.id }));
+    st.feed = (st.feed || []).slice(0, 80).map(f => ({ id: pid(f.uid), name: f.name, at: f.at, av: f.av, gr: f.gr, me: f.uid === u.id, gifted: given.includes(f.uid) }));
+    st.top = top; st.gifts = { left: Math.max(0, 5 - given.length), gr: meB ? meB.gr || 0 : 0, bq: (me && me.bq) || 0 };
     return [200, st];
   }
   if (action === "delete") { await db().deleteUser(u.id); return [200, { ok: true }]; }
@@ -623,10 +665,13 @@ async function challengeReminders() {
   if (!kind || !(await db().once(`ch|${c.id}|${today}|${kind}`))) return 0;
   const members = await db().clubMembers(c.id);
   const done = new Set((await db().clubDayMarks(c.id, today)).filter(x => +x.v === 1).map(x => +x.uid));
+  // кто не отмечался два дня подряд — утром получает мягкое «мы тебя ждём»
+  let away = new Set();
+  if (kind === "m" && n >= 3) { const y1 = new Set((await db().clubDayMarks(c.id, addDays(today, -1))).filter(x => +x.v === 1).map(x => +x.uid)), y2 = new Set((await db().clubDayMarks(c.id, addDays(today, -2))).filter(x => +x.v === 1).map(x => +x.uid)); away = new Set(members.map(m => +m.uid).filter(id => !y1.has(id) && !y2.has(id))); }
   for (const mb of members) {
     if (done.has(+mb.uid)) continue;
     const u = await db().getUser(mb.uid); if (!u || !u.consent || flags(u).has("nocr")) continue;
-    const text = kind === "m" ? T.chMorning(c.title, n, c.len, c.win[0], c.win[1]) : T.chLate(c.title, c.win[1]);
+    const text = kind === "m" ? (away.has(+mb.uid) ? T.chMissed(c.title, n, c.len, c.win[1]) : T.chMorning(c.title, n, c.len, c.win[0], c.win[1])) : T.chLate(c.title, c.win[1]);
     const r = await tg("sendMessage", { chat_id: u.id, text, reply_markup: kbCh() }); if (r.ok) sent++;
     await sleep(40);
   }
