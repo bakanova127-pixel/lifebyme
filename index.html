@@ -1899,7 +1899,8 @@ function flowerCard(){const c=clubAct();const card=el("div",{class:"card flc"});
     card.append(el("button",{class:"flfeed",type:"button",onclick:()=>{haptic("light");show("club")}},el("span",{},st?`Сегодня отметились ${st.today||0}`:"Лента клуба",g?` · у тебя ${g.left} ${plural(g.left,"цветок","цветка","цветков")}`:""),el("span",{class:"go"},"подарить ›")));
     return card}
   const up=clubNextUp();
-  if(up){const dn=diffDays(up.start,TODAY);const ch=myCh(up);card.append(el("span",{class:"eyebrow"},`до старта ${dn} ${plural(dn,"день","дня","дней")}`),el("p",{class:"flt"},clubName(up)),up.desc?el("p",{style:"margin:0"},up.desc):null,ch?el("p",{class:"muted",style:"margin:0"},`Ты в челлендже ✓ Старт ${fmtDate(up.start)}`):el("button",{class:"btn full",type:"button",onclick:()=>chJoin(up)},"Я участвую"))}
+  if(up){const dn=diffDays(up.start,TODAY);const ch=myCh(up);card.append(el("span",{class:"eyebrow"},`до старта ${dn} ${plural(dn,"день","дня","дней")}`),el("p",{class:"flt"},clubName(up)),up.desc?el("p",{style:"margin:0"},up.desc):null,ch?el("p",{class:"muted",style:"margin:0"},`Ты в челлендже ✓ Старт ${fmtDate(up.start)}`):el("button",{class:"btn full",type:"button",onclick:()=>chJoin(up)},"Я участвую"));
+    if(isZr(up))card.append(el("p",{class:"muted",style:"margin:6px 0 0;font-size:.9rem"},`Зарядку можно делать уже сейчас — лепестки начнут раскрываться с ${fmtDate(up.start)}`),zrBtns(null,up,false))}
   else card.append(el("span",{class:"eyebrow"},"перерыв между челленджами"),el("p",{class:"flt"},"Итоги, голосование и новый старт"),el("button",{class:"btn full",type:"button",onclick:()=>show("club")},"Открыть клуб"));
   return card}
 const CEL={7:["Первая неделя позади","Самые трудные дни уже позади. С этого места привычка начинает держаться сама.","Неделя"],14:["Две трети пути","Новизна прошла, а ты продолжаешь. Это и есть привычка.","Две недели"],full:["Цветок распустился","21 день — привычка теперь твоя. Ты в розыгрыше подарка клуба.","Три недели"],fin:["Финиш","Главное — дойти до конца. И это получилось.",""]};
@@ -2121,7 +2122,7 @@ function renderMe(app){const c=cfg();app.append(el("div",{class:"hero"},el("div"
     row("День рождения",bi?bi.date:"—"),
     el("button",{class:"btn ghost",type:"button",onclick:()=>{ob={step:1,data:Object.assign({},DEF,S.settings)};renderOb()}},"Изменить настройки")));
   app.append(notifyCard());
-  app.append(el("p",{class:"muted",style:"font-size:.8rem;text-align:center;margin:8px 0 0"},(SRV.on?"Данные хранятся на сервере клуба в России. Цикл, вес и самочувствие — только на этом телефоне.":inTG?"Данные сохраняются в твоём Telegram. Цикл, вес и самочувствие — только на этом телефоне.":"Превью: данные хранятся только в этом браузере.")+" · версия 29"))}
+  app.append(el("p",{class:"muted",style:"font-size:.8rem;text-align:center;margin:8px 0 0"},(SRV.on?"Данные хранятся на сервере клуба в России. Цикл, вес и самочувствие — только на этом телефоне.":inTG?"Данные сохраняются в твоём Telegram. Цикл, вес и самочувствие — только на этом телефоне.":"Превью: данные хранятся только в этом браузере.")+" · версия 30"))}
 
 /* ================= boot ================= */
 async function boot(){document.body.dataset.skin="kar";render();
