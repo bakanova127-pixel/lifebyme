@@ -571,6 +571,13 @@ body[data-skin="kar"] .wm{border-radius:0}
 .flw-c{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;gap:2px}.flw-c b{font-size:2.1rem;font-weight:400}.flw-c span{font-size:.8rem;color:var(--muted)}.flw-wrap.sm .flw-c b{font-size:1.8rem}
 .flt{font-size:1.4rem;font-weight:300;margin:0;line-height:1.2}
 .flsub{font-size:.88rem}
+/* версия 38: сад зарядки */
+.gdn{display:flex;flex-direction:column;gap:10px;align-items:stretch;text-align:left}
+.gstk{display:flex;align-items:baseline;gap:8px}.gstk b{font-size:2.6rem;font-weight:300;line-height:1}.gstk span{color:var(--muted)}
+.gbed{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:10px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.gbed svg{width:30px;height:30px;display:block}.gbed .grow svg{width:44px;height:44px}.gbed .grow{display:flex;align-items:center;gap:8px;font-size:.88rem}
+.gmeta{display:flex;justify-content:space-between;gap:8px;font-size:.88rem;flex-wrap:wrap}
+.gline{font-size:.88rem;color:var(--muted);text-align:center;width:100%}
 .zrb{display:flex;flex-direction:column;gap:8px;width:100%;margin-top:4px}
 .btn.zr12{background:var(--ink);color:var(--paper)}body[data-skin="kar"] .btn.zr12::before{filter:brightness(0)}
 .linkbtn{border:0;background:none;padding:8px;min-height:40px;color:var(--ink);text-decoration:underline;text-decoration-color:var(--rose);text-underline-offset:4px;font:inherit;font-size:.95rem;cursor:pointer}
@@ -1009,12 +1016,13 @@ function plRem(){return PL.left!=null?PL.left:Math.max(0,PL.end-Date.now())}
 function plTick(){if(!PL||PL.done||PL.left!=null)return;const r=plRem();const sec=Math.ceil(r/1000);if(sec!==PL.lastSec){PL.lastSec=sec;if(sec<=3&&sec>0){const w=PL.steps[PL.i].kind==="work";plBeep(w?880:660,.14);haptic("light")}}if(r<=0){plGo(PL.i+1);return}plDraw(true)}
 function plPause(){if(!PL)return;if(PL.left==null){PL.left=plRem()}else{PL.end=Date.now()+PL.left;PL.left=null}haptic("light");plDraw()}
 function plFinish(){PL.done=true;clearInterval(plStart.t);haptic("success");plBeep(1175,.3);plDraw()}
-function zrAutoMark(){const chs=S.chs||[];let hit=null,late=false;const nl=chs.map(ch=>{const cd=diffDays(TODAY,ch.start)+1;if(cd<1||cd>ch.len||ch.marks[TODAY]===1)return ch;
+function zrAutoMark(){const gOk=gardenRec();const chs=S.chs||[];let hit=null,late=false;const nl=chs.map(ch=>{const cd=diffDays(TODAY,ch.start)+1;if(cd<1||cd>ch.len||ch.marks[TODAY]===1)return ch;
     const c=ch.club?(S.club||[]).find(x=>x.id===ch.club):null;const isZr=ch.club?/зарядк/i.test((c&&c.title)||ch.title):/зарядк/i.test(ch.title);if(!isZr)return ch;
     const w=ch.club?((c&&c.win)||ch.win):null;if(w&&!inWin(w)){late=true;return ch}
     hit=ch;if(ch.club)clubApi("mark",{ch:ch.club,day:TODAY,v:1,av:myAv()}).then(()=>clubStats());return Object.assign({},ch,{marks:Object.assign({},ch.marks,{[TODAY]:1})})});
   if(hit){S.chs=nl;setBig("chs",nl);setTimeout(()=>toast("Лепесток раскрыт ✓"),1200);setTimeout(()=>chCelebrate(nl.find(x=>x.id===hit.id),(S.club||[]).find(x=>x.id===hit.club)),1400)}
-  else if(!late&&!clubAct()){const last=clubLast(),mine=myCh(last);if(last&&mine&&isZr(last)&&TODAY>=shift(mine.start,last.len)){const kp=Object.assign({},mine.keep||{},{[TODAY]:1});setChs((S.chs||[]).map(x=>x.id===mine.id?Object.assign({},x,{keep:kp}):x))}}else if(late)setTimeout(()=>toast("Зарядка сделана. В челлендж засчитывается с 6:00 до 11:00 по Москве"),1600)}
+  else if(!late&&!clubAct()){const last=clubLast(),mine=myCh(last);if(last&&mine&&isZr(last)&&TODAY>=shift(mine.start,last.len)){const kp=Object.assign({},mine.keep||{},{[TODAY]:1});setChs((S.chs||[]).map(x=>x.id===mine.id?Object.assign({},x,{keep:kp}):x))}}else if(late)setTimeout(()=>toast("Зарядка сделана. В челлендж засчитывается с 6:00 до 11:00 по Москве"),1600);
+  if(!hit&&!late&&gardenOn()&&garden())setTimeout(()=>toast(gOk?"День в саду ✓ 🌱":`Зарядка сделана. В сад засчитывается с ${zrWin()[0]} до ${zrWin()[1]} по Москве`),1300)}
 function plDoneKeys(){const keys=new Set();if(!PL)return keys;const lastIdx=PL.done?PL.steps.length:PL.i;const byEx={};PL.steps.forEach((s,j)=>{if(s.kind==="work"){byEx[s.key]=byEx[s.key]||[];byEx[s.key].push(j)}});
   Object.entries(byEx).forEach(([k,js])=>{if(js.every(j=>j<lastIdx))keys.add(k)});return keys}
 function plClose(save){if(!PL)return;clearInterval(plStart.t);try{plUnlock.el&&plUnlock.el.pause()}catch(e){}try{PL.lock&&PL.lock.release()}catch(e){}const o=PL;const ov=$("player");if(ov)ov.remove();PL=null;document.body.style.overflow="";
@@ -1337,9 +1345,60 @@ function clubDays(){return Math.max(0,diffDays(TODAY,clubJoinDay())+1)}
 const BADGES=[
  ["d30","🌸","30 дней Life by me","30 дней в клубе",30,clubDays],
  ["d60","✨","60 дней Life by me","60 дней в клубе",60,clubDays],
- ["d90","👑","90 дней Life by me","90 дней в клубе — три месяца!",90,clubDays]];
+ ["d90","👑","90 дней Life by me","90 дней в клубе — три месяца!",90,clubDays],
+ ["g30","🔥","30 дней подряд","зарядка 30 дней подряд",30,gBest],
+ ["g50","🔥","50 дней подряд","зарядка 50 дней подряд",50,gBest],
+ ["g100","💯","100 дней подряд","зарядка 100 дней подряд",100,gBest],
+ ["g365","👑","Год подряд","зарядка 365 дней подряд",365,gBest]];
 function checkBadges(silent){S.bdg=S.bdg||{};const fresh=[];BADGES.forEach(([id,e,n,,goal,fn])=>{if(!S.bdg[id]&&fn()>=goal){S.bdg[id]=TODAY;fresh.push([e,n])}});
   if(fresh.length){setBig("bdg",S.bdg);if(!silent){haptic("success");toast(fresh.length===1?`Новый значок: ${fresh[0][0]} ${fresh[0][1]}!`:`Новые значки: ${fresh.map(x=>x[0]).join(" ")}`)}}}
+/* ===== версия 38: сад зарядки — серия не останавливается после челленджа =====
+   Засчитывается только зарядка с таймером в утреннее окно. Каждые 21 день подряд — новый цветок в саду (навсегда).
+   Спасательный круг: держать можно один; потратила — новый вырастает вместе со следующим цветком.
+   Пропуск без круга — серия с нуля, сад остаётся. */
+const GARDEN_FROM="2026-11-18",ZR_WIN=["06:00","11:00"];
+function gardenOn(){return TODAY>=(S.clubGarden||GARDEN_FROM)}
+function zrWin(){const z=(S.club||[]).filter(isZr).sort((a,b)=>a.start<b.start?1:-1)[0];return (z&&z.win)||ZR_WIN}
+function zrClubChs(){return (S.chs||[]).filter(ch=>ch.club&&isZr((S.club||[]).find(x=>x.id===ch.club)||ch))}
+function zrDaySet(){const set={};zrClubChs().forEach(ch=>{for(const k in ch.marks||{})if(ch.marks[k]===1)set[k]=1;for(const k in ch.keep||{})set[k]=1});for(const k in S.zrd||{})set[k]=1;return set}
+function garden(){const set=zrDaySet();const cs=zrClubChs().map(ch=>ch.from&&ch.from>ch.start?ch.from:ch.start).sort();const ks=Object.keys(set).sort();
+  const start=cs[0]||ks[0];if(!start||start>TODAY)return null;
+  let n=0,f=0,buoy=1,best=0,last=null,lost=null;
+  for(let d=start;d<=TODAY;d=shift(d,1)){
+    if(set[d]){n++;last=d}else if(d===TODAY)break;else if(buoy){buoy=0;n++}else{if(n>0)lost=n;n=0;continue}
+    if(n%21===0){f++;buoy=1}if(n>best)best=n}
+  return {n,f,buoy,best,start,last,lost:n<=3?lost:null,today:!!set[TODAY],grow:n%21}}
+function gBest(){const g=garden();return g?g.best:0}
+function gFlower(k,size){let s="";for(let i=0;i<21;i++)s+=`<ellipse cx="0" cy="-58" rx="10" ry="36" transform="rotate(${(i*360/21).toFixed(2)})" fill="${i<k?"var(--rose)":"var(--paper)"}" stroke="${i<k?"var(--rose)":"#D4D4D4"}" stroke-width="${i<k?1:3}"/>`;
+  return svgEl("-100 -100 200 200",s+'<circle r="30" fill="var(--paper)" stroke="var(--ink)" stroke-width="3"/>')}
+/* записать день сада: зарядка закончена в утреннее окно */
+function gardenRec(){if(!inWin(zrWin()))return false;if(!(S.zrd||{})[TODAY]){S.zrd=Object.assign({},S.zrd,{[TODAY]:1});setBig("zrd",S.zrd)}
+  const g=garden();if(g&&g.n>0&&g.n%21===0&&gardenOn()&&!(S.bdg||{})["gf_"+g.n]){S.bdg=Object.assign({},S.bdg,{["gf_"+g.n]:TODAY});setBig("bdg",S.bdg);setTimeout(()=>toast(`В саду распустился ${g.f}-й цветок 🌸 Спасательный круг снова с тобой`),2600)}
+  checkBadges();gardenSync();return true}
+let gSyncAt=0;
+async function gardenSync(force){if(!API||!inTG)return;if(!force&&Date.now()-gSyncAt<20000)return;gSyncAt=Date.now();const g=garden();
+  const r=await apiCall("club",{op:"garden",s:g?g.n:0,f:g?g.f:0,best:g?g.best:0,last:g&&g.last||"",buoy:g?g.buoy:0,av:myAv()});if(r&&r.top){S.gTop=r;render()}}
+function gardenCard(){const g=garden();if(!g)return null;const w=zrWin();const open=inWin(w);
+  const card=el("div",{class:"card gdn"},el("div",{class:"hrow"},el("h2",{},"Сад зарядки"),el("span",{class:"tag"},`${g.f} ${plural(g.f,"цветок","цветка","цветков")}`)),
+    el("div",{class:"gstk"},el("b",{},g.n),el("span",{},`${plural(g.n,"день","дня","дней")} подряд${g.today?" · сегодня ✓":""}`)));
+  const bed=el("div",{class:"gbed",role:"img","aria-label":`В саду ${g.f} цветков, следующий: ${g.grow} из 21`});
+  const shown=Math.min(g.f,14);for(let i=0;i<shown;i++)bed.append(gFlower(21));if(g.f>shown)bed.append(el("span",{class:"muted"},`+${g.f-shown}`));
+  bed.append(el("span",{class:"grow"},gFlower(g.grow),el("span",{},`растёт: ${g.grow} из 21`)));card.append(bed);
+  card.append(el("div",{class:"gmeta"},el("span",{},g.buoy?"🛟 спасательный круг есть":`🛟 круг вернётся через ${21-g.grow} ${plural(21-g.grow,"день","дня","дней")}`),el("span",{class:"muted"},`лучшая серия: ${g.best}`)));
+  if(g.lost)card.append(el("p",{class:"muted",style:"margin:0;font-size:.9rem"},`Серия ${g.lost} ${plural(g.lost,"день","дня","дней")} прервалась — начинаем заново. Сад остаётся твоим 🌱`));
+  if(g.today)card.append(el("p",{class:"gline",style:"margin:0"},"Сегодняшний день в саду ✓ До завтра ☀️"));
+  else if(open)card.append(zrBtns(null,null,false),el("p",{class:"gline",style:"margin:0"},`Засчитывается зарядка до ${w[1]} по Москве`));
+  else card.append(el("p",{class:"gline",style:"margin:0"},mskNow()<tmMin(w[0])?`Зарядка в сад — с ${w[0]} до ${w[1]} по Москве`:`Сегодня в сад уже не засчитать. Завтра с ${w[0]} ☀️`),zrBtns(null,null,false));
+  return card}
+/* таблица серий в «Клубе» */
+function gardenBoard(box){const t=S.gTop;if(!t&&!ui.gLoad){ui.gLoad=1;gardenSync(true)}
+  box.append(el("p",{class:"muted",style:"margin:0;font-size:.88rem"},"Кто дольше держит зарядку. Каждый 21 день подряд — новый цветок в саду."));
+  if(!API||!inTG){box.append(el("p",{class:"muted",style:"margin:0"},"Таблица работает внутри Telegram."));return}
+  if(!t){box.append(el("p",{class:"muted",style:"margin:0"},"Загружаю…"));return}
+  if(!t.top.length)box.append(el("p",{class:"muted",style:"margin:0"},"Пока ни у кого нет серии. Начни первым ☀️"));
+  t.top.forEach((r,i)=>box.append(el("div",{class:"frow"+(r.me?" me":"")},el("span",{class:"rk"},i+1),avEl(r.av,r.name,32),el("span",{class:"fn"},el("span",{},r.name+(r.me?" (ты)":"")),r.f?el("small",{class:"muted"},`сад: ${r.f} ${plural(r.f,"цветок","цветка","цветков")}`):null),el("b",{},`🔥 ${r.s}`))));
+  if(t.me&&t.place>10)box.append(el("div",{class:"frow me",style:"border-top:1px dashed var(--line)"},el("span",{class:"rk"},t.place),avEl(myAv(),"ты",32),el("span",{class:"fn"},"Ты"),el("b",{},`🔥 ${t.me.s}`)));
+  if(t.total)box.append(el("span",{class:"muted",style:"font-size:.85rem"},`Держат серию: ${t.total}`))}
 const MONTHS_N=["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"];
 /* значок за каждый челлендж клуба: получаешь, если отметил все дни */
 function chBadges(){const out=[];let y=2026,m=11;const ym=TODAY.slice(0,7);
@@ -1355,12 +1414,12 @@ function badgesCard(){const bd=S.bdg||{};const cb=chBadges();const got=cb.filter
   cb.forEach(b=>{const t=b.c?b.c.title:"челлендж месяца";const e=b.c?(b.c.emoji||"🏅"):"🔒";
     const sub=b.st==="on"?"пройден ✓":b.st==="now"?`${b.done} из ${b.c.len}`:b.st==="miss"?"не пройден":"скоро";
     g.append(tile(e,b.month,b.c?t:sub==="скоро"?"скоро":t,b.st==="on",b.st==="soon"?"lock":"",b.st==="on"?`${b.month}: ${t} — пройден!`:b.c?`${b.month}: ${t}. Отметь все ${b.c.len} дней — и значок твой. ${b.st==="now"?`Сейчас ${b.done} из ${b.c.len}.`:""}`:`${b.month}: челлендж выберем всем клубом`))});
-  const dn=clubDays();BADGES.forEach(([id,e,n,desc,goal])=>{const on=!!bd[id]||dn>=goal;g.append(tile(e,n.replace("Life by me","Life By Me"),on?"получен ✓":`${Math.min(goal,dn)} из ${goal}`,on,id==="d90"?"crown":"",on?`${e} ${n} — получен!`:`${n}: ${desc}. Ты в клубе ${dn} ${plural(dn,"день","дня","дней")}.`))});
+  const dn=clubDays();const gb=gBest();BADGES.forEach(([id,e,n,desc,goal])=>{const gz=id[0]==="g";if(gz&&!gardenOn())return;const v=gz?gb:dn;const on=!!bd[id]||v>=goal;g.append(tile(e,n.replace("Life by me","Life By Me"),on?"получен ✓":`${Math.min(goal,v)} из ${goal}`,on,id==="d90"||id==="g365"?"crown":"",on?`${e} ${n} — получен!`:gz?`${n}: ${desc}. Лучшая серия сейчас — ${gb}.`:`${n}: ${desc}. Ты в клубе ${dn} ${plural(dn,"день","дня","дней")}.`))});
   const sc=clubAct()||clubLast();if(sc&&myCh(sc)){const stp=[[7,"Неделя"],[14,"Две недели"],[21,"Три недели"]];const row=el("div",{class:"stairs"});stp.forEach(([n,t])=>{const on=!!bd[`st${n}_${sc.id}`];row.append(el("div",{class:"bdg"+(on?" on":"")},el("span",{class:"e","aria-hidden":"true"},on?"🌸":"·"),el("b",{},t),el("small",{},on?"получен ✓":`${n} лепестков`)))});
     const kp=bd["keep_"+sc.id];var stairs=el("div",{style:"display:flex;flex-direction:column;gap:6px"},el("span",{class:"muted",style:"font-size:.85rem"},`Ступеньки челленджа «${clubName(sc)}» — на 21-м дне складываются в значок месяца`),row,kp?el("span",{style:"font-size:.9rem"},"🌱 «Привычка осталась» — получен"):null)}
   return el("div",{class:"card"},el("div",{class:"hrow"},el("h2",{},"Мои значки"),el("span",{class:"tag"},`челленджей: ${got}`)),
     el("p",{class:"muted",style:"margin:0;font-size:.88rem"},"Каждый месяц — новый челлендж клуба: 21 день привычки и 9 дней отдыха. Раскрой все лепестки (спасательный круг считается) — и значок месяца твой. А ещё значки за 30, 60 и 90 дней в клубе."),typeof stairs!=="undefined"?stairs:null,g)}
-async function clubLoad(){try{const r=await fetch("club.json?t="+Date.now(),{cache:"no-store"});if(r.ok){const j=await r.json();S.club=(j.challenges||[]).filter(c=>c&&c.id&&c.start&&c.len);S.clubNext=j.next||null;S.clubPosts=j.posts||[];
+async function clubLoad(){try{const r=await fetch("club.json?t="+Date.now(),{cache:"no-store"});if(r.ok){const j=await r.json();S.club=(j.challenges||[]).filter(c=>c&&c.id&&c.start&&c.len);S.clubNext=j.next||null;S.clubGarden=j.garden||null;S.clubPosts=j.posts||[];
     if(S.settings&&S.settings.onboarded)(S.club||[]).forEach(c=>{if((cfg().reg||[]).includes(c.start)&&!myCh(c)&&diffDays(TODAY,c.start)+1<=c.len)chJoin(c,true)});render();clubStats()}}catch(e){}}
 async function clubApi(op,body){return apiCall("club",Object.assign({op},body||{}))}
 async function clubStats(){if(!API)return;S.clubStat=S.clubStat||{};for(const c of S.club||[]){if(!(S.chs||[]).some(x=>x.club===c.id))continue;const st=await clubApi("stats",{ch:c.id,day:TODAY,av:myAv()});if(st){S.clubStat[c.id]=st;if(st.gifts&&clubAct()&&clubAct().id===c.id)S.gifts=st.gifts}}render()}
@@ -1895,6 +1954,7 @@ function flowerCard(){const c=clubAct();const card=el("div",{class:"card flc"});
     card.append(el("div",{class:"flw-wrap",role:"img","aria-label":`Раскрыто ${P.opened} лепестков из ${P.need}`},flowerSvg(ch,c.len),el("div",{class:"flw-c"},el("b",{},P.opened),el("span",{},`из ${P.need}`))),
       el("p",{class:"flt"},clubName(c)),
       el("span",{class:"muted flsub"},`${P.today?"сегодняшний лепесток раскрыт ✓":`день ${P.cd} из ${c.len}`} · ${P.buoy?"спасательный круг использован":"спасательный круг есть"}`));
+    if(isZr(c)&&gardenOn()){const g=garden();if(g)card.append(el("span",{class:"flsub",style:"color:var(--rose)"},`🔥 серия ${g.n} · после 21-го дня счётчик не остановится — дальше твой сад`))}
     if(P.today){const md=(ch.mood||{})[TODAY];
       if(!md)card.append(el("span",{class:"muted",style:"font-size:.9rem"},"Как сегодня? Одно слово"),el("div",{class:"moods"},...MOODS.map((m,i)=>el("button",{class:"chip",type:"button",onclick:()=>chMood(ch,i+1)},m))));
       else card.append(el("span",{class:"muted",style:"font-size:.9rem"},`Сегодня: ${MOODS[md-1]}. До завтра 🌸`))}
@@ -1908,7 +1968,7 @@ function flowerCard(){const c=clubAct();const card=el("div",{class:"card flc"});
   if(up){const dn=diffDays(up.start,TODAY);const ch=myCh(up);card.append(el("span",{class:"eyebrow"},`до старта ${dn} ${plural(dn,"день","дня","дней")}`),el("p",{class:"flt"},clubName(up)),up.desc?el("p",{style:"margin:0"},up.desc):null,ch?el("p",{class:"muted",style:"margin:0"},`Ты в челлендже ✓ Старт ${fmtDate(up.start)}`):el("button",{class:"btn full",type:"button",onclick:()=>chJoin(up)},"Я участвую"));
     if(isZr(up))card.append(el("p",{class:"muted",style:"margin:6px 0 0;font-size:.9rem"},`Зарядку можно делать уже сейчас — лепестки начнут раскрываться с ${fmtDate(up.start)}`),zrBtns(null,up,false))}
   else{const last=clubLast();card.append(el("span",{class:"eyebrow"},"перерыв между челленджами"),el("p",{class:"flt"},"Итоги, голосование и новый старт"),el("button",{class:"btn ghost full",type:"button",onclick:()=>show("club")},"Открыть клуб"));
-    if(!last||isZr(last))card.append(el("p",{class:"muted",style:"margin:6px 0 0;font-size:.9rem"},"А зарядку можно делать и в перерыве — привычка не теряется"),zrBtns(null,null,false))}
+    if((!last||isZr(last))&&!(gardenOn()&&garden()))card.append(el("p",{class:"muted",style:"margin:6px 0 0;font-size:.9rem"},"А зарядку можно делать и в перерыве — привычка не теряется"),zrBtns(null,null,false))}
   return card}
 const CEL={7:["Первая неделя позади","Самые трудные дни уже позади. С этого места привычка начинает держаться сама.","Неделя"],14:["Две трети пути","Новизна прошла, а ты продолжаешь. Это и есть привычка.","Две недели"],full:["Цветок распустился","21 день — привычка теперь твоя. Ты в розыгрыше подарка клуба.","Три недели"],fin:["Финиш","Главное — дойти до конца. И это получилось.",""]};
 function chCelebrate(ch,c,force){if(!ch||!c)return;const P=chProg(ch,c.len);const got=new Set(ch.cel||[]);const reach=[7,14].filter(n=>P.opened>=n);const finNow=P.opened>=P.need||(P.cd>=c.len&&P.today);if(finNow)reach.push("fin");
@@ -1952,7 +2012,7 @@ function bdayCards(app){const c=cfg(),cur=TODAY,off=0,dd=parseKey(TODAY);
 function renderToday(app){cur=TODAY;const c=cfg(),dd=parseKey(TODAY);const pills=el("div",{class:"pills"});
   if(S.acc&&S.acc.kind==="trial")pills.append(el("span",{class:"pill",role:"button",tabindex:"0",style:"cursor:pointer",onclick:()=>openBot("plans")},`🎁 пробный: ${S.acc.daysLeft} ${plural(S.acc.daysLeft,"день","дня","дней")}`));
   app.append(el("header",{class:"hero"},el("div",{},el("div",{class:"date"},`${WDF[dd.getUTCDay()]}, ${fmtDate(TODAY)}`),el("h1",{},c.name?`Привет, ${c.name}`:"Привет!"),pills.childNodes.length?pills:null)));
-  bdayCards(app);app.append(flowerCard());app.append(habitsCard())}
+  bdayCards(app);{const ac=clubAct();const gz=gardenOn()&&garden()&&!(ac&&isZr(ac)&&myCh(ac));app.append(flowerCard());if(gz)app.append(gardenCard())}if(gardenOn()&&!ui.gSynced){ui.gSynced=1;gardenSync(true)}app.append(habitsCard())}
 
 /* ---------- вкладка «Клуб» ---------- */
 function fmtHM(at){try{return new Date(at).toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit",timeZone:"Europe/Moscow"})}catch(e){return ""}}
@@ -1965,9 +2025,10 @@ function renderClub(app){app.append(el("div",{class:"hero"},el("div",{},el("div"
     const head=el("div",{class:"card"},el("span",{class:"eyebrow"},`день ${cd} из ${c.len}`),el("p",{class:"flt",style:"text-align:left"},clubName(c)),el("span",{class:"muted",style:"font-size:.92rem"},st?`В челлендже ${st.members||0} · сегодня отметились ${st.today||0}`:(API&&inTG?"Загружаю клуб…":"Лента клуба работает в Telegram")));
     app.append(head);
     if(!ch){head.append(c.desc?el("p",{style:"margin:0"},c.desc):null,el("button",{class:"btn full",type:"button",onclick:()=>chJoin(c)},"Вступить в челлендж"));return}
-    const tabs=[["feed","Сегодня"],["board","Рейтинг"],["sup","Поддержка"]];const ct=ui.ctab||"feed";
+    const tabs=[["feed","Сегодня"],["board","Рейтинг"],["sup","Поддержка"]].concat(gardenOn()?[["gdn","Серии"]]:[]);const ct=ui.ctab||"feed";
     app.append(el("div",{class:"seg",role:"tablist","aria-label":"Вид"},tabs.map(([k,t])=>el("button",{type:"button",role:"tab","aria-selected":ct===k?"true":"false",onclick:()=>{haptic("light");ui.ctab=k;render()}},t))));
     const box=el("div",{class:"card"});app.append(box);
+    if(ct==="gdn"){box.append(el("h2",{},"Серии зарядки"));gardenBoard(box);return}
     if(!st){box.append(el("p",{class:"muted",style:"margin:0"},API&&inTG?"Загружаю…":"Лента, рейтинг и цветы работают внутри Telegram."));return}
     if(ct==="feed"){const g=S.gifts||{left:0};
       box.append(el("div",{class:"hrow"},el("span",{},"Цветы на сегодня"),el("span",{class:"gleft",role:"img","aria-label":`Осталось ${g.left} из 5`},...[0,1,2,3,4].map(i=>flowerIco(i<g.left)))));
@@ -1991,6 +2052,7 @@ function renderClub(app){app.append(el("div",{class:"hero"},el("div",{},el("div"
     const it=el("div",{class:"card"},el("div",{class:"itog"},el("div",{class:"flw-wrap xs"},flowerSvg(mine,last.len)),el("div",{style:"display:flex;flex-direction:column;gap:2px"},el("span",{class:"eyebrow"},"твои итоги"),el("b",{style:"font-size:1.3rem;font-weight:400"},`${P.opened} из ${last.len}`),el("span",{class:"muted",style:"font-size:.9rem"},clubName(last)))));
     const md=mine.mood||{};if(Object.keys(md).length)it.append(el("div",{class:"moodstrip",style:`grid-template-columns:repeat(${last.len},minmax(0,1fr))`,role:"img","aria-label":"Настроение по дням"},Array.from({length:last.len},(_,i)=>{const v=md[shift(last.start,i)];return el("i",{class:v?"m"+v:""})})),el("span",{class:"muted",style:"font-size:.8rem"},"настроение по дням: красный — бодро, розовый — нормально, чёрный — тяжело"));
     it.append(el("button",{class:"btn full",type:"button",onclick:()=>storyCard(last,mine)},"Карточка для сторис"));app.append(it)}
+  if(gardenOn()){const gb=el("div",{class:"card"},el("h2",{},"Серии зарядки"));gardenBoard(gb);app.append(gb)}
   const vp=votePost();if(vp)app.append(voteCard(vp));
   if(last&&mine)app.append(keepCard(last,mine,(up&&up.start)||(nx&&nx.start)||null));
   const sc=startCard(up,nx);if(sc)app.append(sc);
@@ -2012,7 +2074,7 @@ function keepCard(last,mine,nextStart){const s0=shift(mine.start,last.len);const
     if(Object.keys(nk).length>=5){S.bdg=S.bdg||{};if(!S.bdg["keep_"+last.id]){S.bdg["keep_"+last.id]=TODAY;setBig("bdg",S.bdg);toast("Новый значок: «Привычка осталась» 🌱")}}};
   return el("div",{class:"card"},el("div",{class:"hrow"},el("h2",{},"Сохрани привычку"),el("span",{class:"tag"},`${cnt} из 5`)),
     el("p",{class:"muted",style:"margin:0;font-size:.9rem"},`${clubName(last)} — по желанию, без обязательств. 5 отметок в перерыве — значок «Привычка осталась».`),dots,
-    isZr(last)?el("div",{class:"row2"},el("button",{class:"btn ghost",type:"button",onclick:()=>zrGo(6)},"Зарядка · 6 мин"),el("button",{class:"btn"+(kp[TODAY]?" ghost":""),type:"button",onclick:mark},kp[TODAY]?"Сделано ✓":"Сделано сегодня")):el("button",{class:"btn full"+(kp[TODAY]?" ghost":""),type:"button",onclick:mark},kp[TODAY]?"Сделано ✓":"Сделано сегодня"))}
+    isZr(last)?(kp[TODAY]?el("button",{class:"btn ghost full",type:"button",disabled:true},"Сделано ✓"):zrBtns(null,null,false)):el("button",{class:"btn full"+(kp[TODAY]?" ghost":""),type:"button",onclick:mark},kp[TODAY]?"Сделано ✓":"Сделано сегодня"))}
 function startCard(up,nx){const start=(up&&up.start)||(nx&&nx.start)||null;if(!start||start<=TODAY)return null;const dn=diffDays(start,TODAY);
   const card=el("div",{class:"card"},el("div",{class:"hrow"},el("h2",{},`Старт ${fmtDate(start)}`),el("span",{class:"tag"},`через ${dn} ${plural(dn,"день","дня","дней")}`)),el("p",{class:"flt",style:"text-align:left"},up?clubName(up):(nx.title||"Привычку выбираем голосованием")));
   const invite=el("button",{class:"btn ghost",type:"button",onclick:()=>{const link=(S.acc&&S.acc.ref)||(S.acc&&S.acc.bot?`https://t.me/${S.acc.bot}`:"");if(!link){toast("Ссылка появится в Telegram");return}const u=`https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent("Пойдём со мной в челлендж Life by me club?")}`;try{tg.openTelegramLink(u)}catch(e){window.open(u,"_blank")}}},"Позвать друга");
@@ -2129,7 +2191,7 @@ function renderMe(app){const c=cfg();app.append(el("div",{class:"hero"},el("div"
     row("День рождения",bi?bi.date:"—"),
     el("button",{class:"btn ghost",type:"button",onclick:()=>{ob={step:1,data:Object.assign({},DEF,S.settings)};renderOb()}},"Изменить настройки")));
   app.append(notifyCard());
-  app.append(el("p",{class:"muted",style:"font-size:.8rem;text-align:center;margin:8px 0 0"},(SRV.on?"Данные хранятся на сервере клуба в России. Цикл, вес и самочувствие — только на этом телефоне.":inTG?"Данные сохраняются в твоём Telegram. Цикл, вес и самочувствие — только на этом телефоне.":"Превью: данные хранятся только в этом браузере.")+" · версия 37"))}
+  app.append(el("p",{class:"muted",style:"font-size:.8rem;text-align:center;margin:8px 0 0"},(SRV.on?"Данные хранятся на сервере клуба в России. Цикл, вес и самочувствие — только на этом телефоне.":inTG?"Данные сохраняются в твоём Telegram. Цикл, вес и самочувствие — только на этом телефоне.":"Превью: данные хранятся только в этом браузере.")+" · версия 38"))}
 
 /* ================= boot ================= */
 async function boot(){document.body.dataset.skin="kar";render();
@@ -2138,7 +2200,7 @@ async function boot(){document.body.dataset.skin="kar";render();
   if(mode==="soon"){$("tabbar").hidden=true;$("app").replaceChildren(topBar(),el("div",{class:"hero"},el("div",{},el("div",{class:"date"},"тестовый режим"),el("h1",{},"Скоро откроемся"))),el("div",{class:"card"},el("p",{style:"margin:0"},"Life By Me сейчас в тестовом режиме. Старт — 1 ноября 🖤")));return}
   const keys=await store.keys();const base=await store.getMany(["settings","weight","cycle","ch"].concat(keys.filter(k=>k.startsWith("fm_"))).filter(k=>keys.includes(k)));
   const parse=v=>{try{return v?JSON.parse(v):null}catch(e){return null}};
-  S.settings=parse(base.settings);{const wg=parse(ls.get("wgoal"));if(S.settings&&wg)S.settings=Object.assign({},S.settings,{start:wg.start,target:wg.target});else if(S.settings&&("start" in S.settings||"target" in S.settings))store.set("settings",S.settings)}S.weight=parse(base.weight)||{entries:[]};S.cycle=parse(base.cycle);S.ch=parse(base.ch);S.chs=(await getBig(keys,"chs"))||null;if(!S.chs){S.chs=S.ch?[Object.assign({id:"c1"},S.ch)]:[];if(S.ch){setBig("chs",S.chs);store.remove(["ch"])}}S.vb=Object.assign({text:"",aff:[],goals:[]},(await getBig(keys,"vb"))||{});S.fin=await getBig(keys,"fin");S.care=Object.assign({procs:[],visits:[],ill:[]},(await getBig(keys,"care"))||{});S.books=(await getBig(keys,"books"))||[];S.rec=(await getBig(keys,"rec"))||[];S.myw=(await getBig(keys,"myw"))||{};S.ev=(await getBig(keys,"ev"))||[];if(S.ev.some(e=>e.kind==="bday"&&!e.yearly)){S.ev=S.ev.map(e=>e.kind==="bday"?Object.assign({},e,{yearly:true}):e);setBig("ev",S.ev)}S.style=Object.assign({week:{},items:[]},(await getBig(keys,"style"))||{});for(const k of keys.filter(k=>k.startsWith("fm_"))){const v=parse(base[k]);if(v)S.fm[k.slice(3).replace("_","-")]=v}
+  S.settings=parse(base.settings);{const wg=parse(ls.get("wgoal"));if(S.settings&&wg)S.settings=Object.assign({},S.settings,{start:wg.start,target:wg.target});else if(S.settings&&("start" in S.settings||"target" in S.settings))store.set("settings",S.settings)}S.weight=parse(base.weight)||{entries:[]};S.cycle=parse(base.cycle);S.ch=parse(base.ch);S.chs=(await getBig(keys,"chs"))||null;S.zrd=(await getBig(keys,"zrd"))||{};if(!S.chs){S.chs=S.ch?[Object.assign({id:"c1"},S.ch)]:[];if(S.ch){setBig("chs",S.chs);store.remove(["ch"])}}S.vb=Object.assign({text:"",aff:[],goals:[]},(await getBig(keys,"vb"))||{});S.fin=await getBig(keys,"fin");S.care=Object.assign({procs:[],visits:[],ill:[]},(await getBig(keys,"care"))||{});S.books=(await getBig(keys,"books"))||[];S.rec=(await getBig(keys,"rec"))||[];S.myw=(await getBig(keys,"myw"))||{};S.ev=(await getBig(keys,"ev"))||[];if(S.ev.some(e=>e.kind==="bday"&&!e.yearly)){S.ev=S.ev.map(e=>e.kind==="bday"?Object.assign({},e,{yearly:true}):e);setBig("ev",S.ev)}S.style=Object.assign({week:{},items:[]},(await getBig(keys,"style"))||{});for(const k of keys.filter(k=>k.startsWith("fm_"))){const v=parse(base[k]);if(v)S.fm[k.slice(3).replace("_","-")]=v}
   const oldImgs=keys.filter(k=>k.startsWith("img_"));if(oldImgs.length||S.vb.imgs){store.remove(oldImgs);delete S.vb.imgs;setBig("vb",S.vb)}
   const dayKeys=keys.filter(k=>k.startsWith("d_"));const keep=dayKeys.filter(k=>diffDays(TODAY,k.slice(2))<=45),old=dayKeys.filter(k=>!keep.includes(k));
   if(old.length)store.remove(old);

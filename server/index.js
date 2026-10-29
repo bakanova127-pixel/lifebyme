@@ -607,6 +607,19 @@ async function api(action, body) {
       if (op === "reg") await db().clubJoin(k, u.id, (user.first_name || "").slice(0, 30));
       const ms = await db().clubMembers(k); return [200, { n: ms.length, me: ms.some(m => +m.uid === +u.id) }];
     }
+    // сад зарядки: приложение присылает свою серию, сервер отдаёт топ-10 и место
+    if (op === "garden") {
+      const today = mskDay(); const nm0 = (user.first_name || "").slice(0, 30);
+      const int = (x, mx) => Math.max(0, Math.min(mx, Math.floor(+x || 0)));
+      const last = /^\d{4}-\d{2}-\d{2}$/.test(body.last || "") && body.last <= today ? body.last : "";
+      const av = typeof body.av === "string" && /^(a:\d{1,2}|tg:https:\/\/t\.me\/i\/userpic\/[\w\/.-]{1,200})$/.test(body.av) ? body.av : "";
+      if (body.s != null) await db().clubPatch("garden", u.id, m => { m.name = nm0 || m.name || ""; m.s = int(body.s, 5000); m.f = int(body.f, 300); m.best = Math.max(m.best || 0, int(body.best, 5000)); m.last = last; m.buoy = body.buoy ? 1 : 0; m.at = today; if (av) m.av = av; });
+      // серия жива, если зарядка была сегодня или вчера; позавчера — только если остался спасательный круг
+      const alive = m => m.last && (m.last >= addDays(today, -1) || (m.last === addDays(today, -2) && m.buoy));
+      const rows = (await db().clubRaw("garden")).filter(m => m && m.name).map(m => ({ uid: +m.uid, name: m.name, av: m.av || "", s: alive(m) ? (+m.s || 0) : 0, f: +m.f || 0 })).filter(r => r.s > 0).sort((a, b) => b.s - a.s || b.f - a.f);
+      const i = rows.findIndex(r => r.uid === +u.id);
+      return [200, { top: rows.slice(0, 10).map(r => ({ name: r.name, av: r.av, s: r.s, f: r.f, me: r.uid === +u.id })), place: i + 1, me: i >= 0 ? { s: rows[i].s, f: rows[i].f } : null, total: rows.length }];
+    }
     const ch = String(body.ch || "").slice(0, 60); if (!ch) return [400, { error: "ch" }];
     const day = /^\d{4}-\d{2}-\d{2}$/.test(body.day || "") ? body.day : mskDay();
     const nm = (user.first_name || "").slice(0, 30);
