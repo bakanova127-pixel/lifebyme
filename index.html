@@ -1887,7 +1887,7 @@ function chMood(ch,v){const nl=(S.chs||[]).map(x=>x.id===ch.id?Object.assign({},
 function zrBtns(ch,c,canMark){const w=el("div",{class:"zrb"});
   w.append(el("span",{class:"muted",style:"font-size:.85rem;text-align:center"},"Зарядка"),el("div",{class:"row2"},el("button",{class:"btn",type:"button",onclick:()=>zrGo(6)},"6 минут"),el("button",{class:"btn zr12",type:"button",onclick:()=>zrGo(12)},"12 минут")),
     el("button",{class:"btn ghost full",type:"button",onclick:()=>zrGo(2)},"Ленивый день · 2 мин"));
-  if(canMark)w.append(el("button",{class:"linkbtn",type:"button",onclick:()=>chMark(ch,c)},"Уже сделано — просто отметиться"));return w}
+  if(canMark)w.append(el("span",{class:"muted",style:"font-size:.8rem;text-align:center"},"Лепесток раскроется, когда закончишь зарядку 🌸"));return w}
 function flowerCard(){const c=clubAct();const card=el("div",{class:"card flc"});
   if(c){const ch=myCh(c);
     if(!ch){card.append(el("span",{class:"eyebrow"},"челлендж клуба"),el("p",{class:"flt"},clubName(c)),c.desc?el("p",{style:"margin:0"},c.desc):null,el("button",{class:"btn full",type:"button",onclick:()=>chJoin(c)},"Вступить в челлендж"));return card}
@@ -2129,7 +2129,7 @@ function renderMe(app){const c=cfg();app.append(el("div",{class:"hero"},el("div"
     row("День рождения",bi?bi.date:"—"),
     el("button",{class:"btn ghost",type:"button",onclick:()=>{ob={step:1,data:Object.assign({},DEF,S.settings)};renderOb()}},"Изменить настройки")));
   app.append(notifyCard());
-  app.append(el("p",{class:"muted",style:"font-size:.8rem;text-align:center;margin:8px 0 0"},(SRV.on?"Данные хранятся на сервере клуба в России. Цикл, вес и самочувствие — только на этом телефоне.":inTG?"Данные сохраняются в твоём Telegram. Цикл, вес и самочувствие — только на этом телефоне.":"Превью: данные хранятся только в этом браузере.")+" · версия 36"))}
+  app.append(el("p",{class:"muted",style:"font-size:.8rem;text-align:center;margin:8px 0 0"},(SRV.on?"Данные хранятся на сервере клуба в России. Цикл, вес и самочувствие — только на этом телефоне.":inTG?"Данные сохраняются в твоём Telegram. Цикл, вес и самочувствие — только на этом телефоне.":"Превью: данные хранятся только в этом браузере.")+" · версия 37"))}
 
 /* ================= boot ================= */
 async function boot(){document.body.dataset.skin="kar";render();
