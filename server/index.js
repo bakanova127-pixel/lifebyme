@@ -448,7 +448,7 @@ async function onMessage(m) {
   if (text === "/help") return tg("sendMessage", { chat_id: chat, text: T.faq(ADMIN_NICK()), parse_mode: "HTML", disable_web_page_preview: true, reply_markup: kbBack() });
   if (text === "/delete") return tg("sendMessage", { chat_id: chat, text: T.delAsk, reply_markup: { inline_keyboard: [[{ text: "🗑 Да, удалить всё", callback_data: "delyes" }], [{ text: "Нет, оставить", callback_data: "delno" }]] } });
   if (m.voice || m.audio) {
-    const v = m.voice || m.audio; if ((v.duration || 0) > 60) return tg("sendMessage", { chat_id: chat, text: "🎤 Голосовое длиннее минуты — запиши, пожалуйста, покороче." });
+    const v = m.voice || m.audio; if ((v.duration || 0) > 20) return tg("sendMessage", { chat_id: chat, text: "🎤 Голосовое длиннее 20 секунд — запиши, пожалуйста, покороче. Одно дело или трата — одно короткое сообщение." });
     let heard = ""; try { heard = await stt(v.file_id); } catch (e) { console.log("stt", e && e.message); return tg("sendMessage", { chat_id: chat, text: "🎤 Не получилось распознать. Попробуй ещё раз или напиши текстом, начав с «+»." }); }
     if (!heard) return tg("sendMessage", { chat_id: chat, text: "🎤 Ничего не расслышала. Попробуй ещё раз, чуть ближе к телефону." });
     return dictStart(chat, u, heard, true);
