@@ -897,6 +897,15 @@ module.exports.handler = async function (event, context) {
       const t0 = Date.now(); let dbr; try { dbr = await db().health(); } catch (e) { dbr = "ошибка: " + (e && e.message); }
       return reply(200, { webhook_url: w.url || "", pending: w.pending_update_count, last_error: w.last_error_message || "нет", last_error_date: w.last_error_date ? new Date(w.last_error_date * 1000).toISOString() : "", db: dbr, db_ms: Date.now() - t0, admin: ADMIN() || "не задан", secret_set: !!env("WEBHOOK_SECRET"), relay: env("TG_API") || "нет" });
     }
+    if (a === "ping" && qs.s && qs.s === env("WEBHOOK_SECRET")) { // проверка: доходит ли функция до внешнего адреса
+      const u = String(qs.u || ""); if (!/^https:\/\/[\w.-]+(\/|$)/.test(u)) return reply(400, { error: "нужен https-адрес в ?u=" });
+      const t0 = Date.now();
+      try {
+        const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 8000);
+        const r = await fetch(u, { signal: ctl.signal, redirect: "manual" }); clearTimeout(tm);
+        return reply(200, { url: u, status: r.status, ms: Date.now() - t0, body: (await r.text()).slice(0, 120) });
+      } catch (e) { return reply(200, { url: u, ms: Date.now() - t0, error: String(e && e.name || "") + " " + String(e && e.message || e) }); }
+    }
     if (a === "health") return reply(200, { ok: true, db: await db().health(), token: !!TOKEN(), admin: ADMIN() || null, relay: !!env("TG_API"), freeUntil: FREE_UNTIL(), testers: TESTERS().length, club: CLUB_CHAT() || "нет" });
     return reply(200, { ok: true, service: "Life By Me" });
   } catch (e) {
