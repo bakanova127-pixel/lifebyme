@@ -419,6 +419,31 @@ async function dictApply(u) {
   return { nT, nM };
 }
 
+
+async function fastWebhook(update) {
+  const m = update.message;
+  if (!m || !m.from || !m.chat || m.chat.type !== "private") return null;
+  const text = String(m.text || "").trim().replace(/@\w+(?=\s|$)/, "");
+  if (!["/start", "/app", "/help", "/plans", "/myid"].includes(text)) return null;
+  const message = (text, reply_markup, html = false) => ({ method: "sendMessage", chat_id: m.chat.id, text, ...(reply_markup ? { reply_markup } : {}), ...(html ? { parse_mode: "HTML" } : {}), disable_web_page_preview: true });
+  if (text === "/myid") return message("Твой id: " + m.from.id);
+  if (!isTester(m.from.id)) return message(T.soon);
+  const u = await touch(m.from);
+  if (!u.consent) return message(text === "/start" ? T.start("", isFree()) : T.consentNeed, kbConsent(), true);
+  if (text === "/help") return message(T.faq(ADMIN_NICK()), kbBack(), true);
+  if (text === "/plans") return message(PAID() ? T.plans(freeLabel(), isFounder(u)) : T.freeClub, kbPlans(), true);
+  if (text === "/app") return message(T.openApp, { inline_keyboard: [[btnApp()]] });
+  const a = access(u);
+  if (!a.ok) return message(T.plans(freeLabel(), isFounder(u)), kbPlans(), true);
+  const rows = [];
+  if (CLUB_CHAT()) {
+    const sys = await db().kvAll(0);
+    if (sys.club_chat === CLUB_CHAT() && /^https:\/\/t\.me\//.test(sys.club_link || "")) rows.push([{ text: "🖤 Войти в канал клуба", url: sys.club_link }]);
+  }
+  rows.push([btnApp()], [{ text: "🎁 Пригласить друга", callback_data: "invite" }, { text: "❓ Вопросы", callback_data: "faq" }]);
+  return message(T.inClubDone + (+u.id === ADMIN() ? "\n\nКоманды администратора: /admin" : ""), { inline_keyboard: rows });
+}
+
 async function onMessage(m) {
   const chat = m.chat.id; if (m.chat.type !== "private") return;
   const text = (m.text || "").trim();
@@ -851,7 +876,7 @@ async function reminders() {
 // ---------- setup ----------
 async function setup(selfUrl, fid) {
   const out = {};
-  const hook = env("TG_API") && fid ? `${TG_BASE()}/hook/${fid}` : selfUrl + "?a=tg";
+  const hook = selfUrl + "?a=tg";
   out.hook = hook;
   out.webhook = await tg("setWebhook", { url: hook, secret_token: env("WEBHOOK_SECRET"), allowed_updates: ["message", "callback_query", "chat_join_request"], drop_pending_updates: false });
   out.commands = await tg("setMyCommands", { commands: [{ command: "start", description: "Вступить в клуб" }, { command: "app", description: "Открыть приложение" }, { command: "club", description: "Канал клуба" }, ...(PAID() ? [{ command: "plans", description: "Подписка" }] : []), { command: "invite", description: "Пригласить друга" }, { command: "remind", description: "Напоминания о челлендже" }, { command: "help", description: "Вопросы и поддержка" }, { command: "delete", description: "Удалить мои данные" }] });
@@ -878,6 +903,8 @@ module.exports.handler = async function (event, context) {
     const a = qs.a || "";
     if (a === "tg" || (!a && method === "POST" && body && body.update_id)) {
       if (env("WEBHOOK_SECRET") && h["x-telegram-bot-api-secret-token"] !== env("WEBHOOK_SECRET")) return { statusCode: 403, body: "no" };
+      const fast = await fastWebhook(body);
+      if (fast) return reply(200, fast);
       if (body.message) await onMessage(body.message); else if (body.callback_query) await onCallback(body.callback_query); else if (body.chat_join_request) await onJoin(body.chat_join_request);
       return { statusCode: 200, body: "ok" };
     }
