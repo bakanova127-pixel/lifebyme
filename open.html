@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Life by Me — открыть приложение</title>
+<style>html,body{margin:0;min-height:100%;background:#fff;color:#151515;font-family:system-ui,sans-serif}main{min-height:100vh;display:grid;place-content:center;text-align:center;gap:12px;padding:24px}a{color:#ce342b}</style>
+<script>
+/* Each launch receives a fresh URL, bypassing outdated Telegram / WebView HTML caches.
+   Preserve Telegram launch data in the fragment on the same origin. */
+(function(){
+  var url=new URL("./index.html",location.href);
+  url.searchParams.set("v",String(Date.now()));
+  url.hash=location.hash;
+  location.replace(url.href);
+})();
+</script>
+</head>
+<body><main><strong>Life by Me</strong><p>Открываем приложение…</p><a href="./index.html">Открыть вручную</a></main></body>
+</html>
