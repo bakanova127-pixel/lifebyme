@@ -41,7 +41,7 @@ const setTgFetch = f => { tgFetch = f; };
 async function tg(method, body) {
   let j = {};
   try {
-    const r = await tgFetch(`${TG_BASE()}/bot${TOKEN()}/${method}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
+    const r = await tgFetch(`${TG_BASE()}/bot${TOKEN()}/${method}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}), signal: AbortSignal.timeout(method === "answerCallbackQuery" ? 500 : 6000) });
     j = await r.json();
   } catch (e) { j = { ok: false, description: String(e && e.message || e) }; }
   if (!j.ok) console.log("tg error", method, JSON.stringify(j).slice(0, 300));
@@ -421,6 +421,7 @@ async function dictApply(u) {
 
 
 async function fastWebhook(update) {
+  if (update.callback_query) return fastCallback(update.callback_query);
   const m = update.message;
   if (!m || !m.from || !m.chat || m.chat.type !== "private") return null;
   const text = String(m.text || "").trim().replace(/@\w+(?=\s|$)/, "");
@@ -442,6 +443,31 @@ async function fastWebhook(update) {
   }
   rows.push([btnApp()], [{ text: "🎁 Пригласить друга", callback_data: "invite" }, { text: "❓ Вопросы", callback_data: "faq" }]);
   return message(T.inClubDone + (+u.id === ADMIN() ? "\n\nКоманды администратора: /admin" : ""), { inline_keyboard: rows });
+}
+
+
+async function fastCallback(cq) {
+  const m = cq && cq.message;
+  if (!m || !m.chat || m.chat.type !== "private" || !isTester(cq.from.id)) return null;
+  const d = cq.data;
+  if (!["agree", "inside", "plans", "faq", "back"].includes(d)) return null;
+  let u = await touch(cq.from);
+  let p;
+  if (d === "agree") {
+    if (u.ref || !isFree()) return null;
+    if (!u.consent) u = await agree(u, cq.from);
+    p = await fastWebhook({ message: { chat: m.chat, from: cq.from, text: "/start" } });
+  } else {
+    if (!u.consent) return null;
+    const pages = { inside: [T.inside, kbBack()], plans: [PAID() ? T.plans(freeLabel(), isFounder(u)) : T.freeClub, kbPlans()], faq: [T.faq(ADMIN_NICK()), kbBack()], back: [T.welcome(freeLabel()), kbMain()] };
+    const page = pages[d];
+    p = { text: page[0], reply_markup: page[1], parse_mode: "HTML" };
+  }
+  await tg("answerCallbackQuery", { callback_query_id: cq.id });
+  if (!p) return null;
+  const out = { ...p, method: m.photo ? "editMessageCaption" : "editMessageText", chat_id: m.chat.id, message_id: m.message_id };
+  if (m.photo) { out.caption = out.text; delete out.text; }
+  return out;
 }
 
 async function onMessage(m) {
@@ -876,7 +902,7 @@ async function reminders() {
 // ---------- setup ----------
 async function setup(selfUrl, fid) {
   const out = {};
-  const hook = selfUrl + "?a=tg";
+  const hook = env("TG_API") && fid ? `${TG_BASE()}/hook/${fid}` : selfUrl + "?a=tg";
   out.hook = hook;
   out.webhook = await tg("setWebhook", { url: hook, secret_token: env("WEBHOOK_SECRET"), allowed_updates: ["message", "callback_query", "chat_join_request"], drop_pending_updates: false });
   out.commands = await tg("setMyCommands", { commands: [{ command: "start", description: "Вступить в клуб" }, { command: "app", description: "Открыть приложение" }, { command: "club", description: "Канал клуба" }, ...(PAID() ? [{ command: "plans", description: "Подписка" }] : []), { command: "invite", description: "Пригласить друга" }, { command: "remind", description: "Напоминания о челлендже" }, { command: "help", description: "Вопросы и поддержка" }, { command: "delete", description: "Удалить мои данные" }] });
