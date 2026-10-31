@@ -665,6 +665,13 @@ h1,h2,h3{font-family:"Manrope",system-ui,sans-serif;letter-spacing:-.025em}
 @keyframes lbmkiss{from{transform:scale(.65) rotate(-10deg);opacity:.5}to{transform:scale(1);opacity:1}}
 .tabbar .in{gap:2px}.tabbar button{font-size:.69rem;min-width:0;flex:1;padding-left:2px;padding-right:2px}
 @media(prefers-reduced-motion:reduce){.btn,.chip,.pill,.tile{transition:none}.check[aria-pressed="true"] svg{animation:none}}
+/* White Life by Me UI, fixed four-item bottom bar */
+:root,:root[data-theme="dark"],:root[data-theme="light"],body,body[data-skin],:root[data-theme="dark"] body,:root[data-theme="dark"] body[data-skin],:root:not([data-theme="light"]) body[data-skin]{--bg:#ffffff;--paper:#ffffff;--ink:#111111;--muted:#777777;--line:#e7e7e7;--rose:#ce342b;--rose-soft:#fff0ee;--on-accent:#ffffff;--shadow:0 7px 24px -21px rgba(0,0,0,.16);color-scheme:light}
+html,body{background:#ffffff!important;color:#111111}
+.tabbar{background:#ffffff;overflow:hidden}
+.tabbar .in{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:2px;max-width:520px;width:100%}
+.tabbar .in button{min-width:0;max-width:100%;width:100%;white-space:nowrap;font-size:clamp(.57rem,2.4vw,.69rem);padding:7px 0}
+.tabbar .in svg{width:21px;height:21px;flex-shrink:0}
 </style>
 </head>
 <body>
