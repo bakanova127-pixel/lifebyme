@@ -41,7 +41,7 @@ export default async function handler(req) {
   // Never let a stalled upstream exhaust Vercel's 25-second execution limit.
   // Do not log the path: /bot<token>/... contains the bot credential.
   const route = path.startsWith("/hook/") ? "webhook" : "telegram-api";
-  const timeoutMs = route === "webhook" ? 9000 : 6000;
+  const timeoutMs = route === "webhook" ? 20000 : 6000;
   const started = Date.now();
   try {
     const controller = new AbortController();
