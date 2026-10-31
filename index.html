@@ -651,7 +651,7 @@ body[data-skin] .cel h2{font-size:2.3rem;font-weight:300;margin:0;line-height:1.
 
 /* Life by Me / 2026 design refresh: monochrome with vivid red, all genders */
 :root,body,body[data-skin],body[data-skin="minimal"],:root[data-theme="light"] body{--bg:#f6f6f6;--paper:#ffffff;--ink:#171717;--muted:#696969;--line:#e9e9e9;--rose:#e2333d;--rose-soft:#ffe8e9;--on-accent:#ffffff;--sage:#37936e;--sage-soft:#e5f3eb;--butter:#ffd35e;--shadow:0 8px 28px -20px rgba(0,0,0,.22)}
-:root[data-theme="dark"] body,:root:not([data-theme="light"]) body[data-skin]{--bg:#151515;--paper:#222;--ink:#f7f7f7;--muted:#b1b1b1;--line:#353535;--rose:#ff4b56;--rose-soft:#43292c;--on-accent:#fff;--sage:#7ab997;--sage-soft:#26392e;--shadow:0 8px 26px -18px rgba(0,0,0,.75)}
+:root[data-theme="dark"] body,:root[data-theme="dark"] body[data-skin]{--bg:#151515;--paper:#222;--ink:#f7f7f7;--muted:#b1b1b1;--line:#353535;--rose:#ff4b56;--rose-soft:#43292c;--on-accent:#fff;--sage:#7ab997;--sage-soft:#26392e;--shadow:0 8px 26px -18px rgba(0,0,0,.75)}
 body{background-image:none;font-family:"Manrope",system-ui,sans-serif}
 h1,h2,h3{font-family:"Manrope",system-ui,sans-serif;letter-spacing:-.025em}
 .brand .logo{font-family:"Manrope",system-ui,sans-serif;font-size:1.3rem;font-weight:800;letter-spacing:-.05em}
@@ -2023,7 +2023,7 @@ function flowerSvg(ch,len){const P=ch?chProg(ch,len):null;const gid="challengePe
   return svgEl("-100 -100 200 200",s+'<circle r="34" fill="var(--paper)" stroke="var(--ink)" stroke-width="1"/>')}
 function flowerIco(on){return svgEl("-10 -10 20 20",["0 -5","5 0","0 5","-5 0"].map(p=>`<circle cx="${p.split(" ")[0]}" cy="${p.split(" ")[1]}" r="4" fill="${on?"var(--rose)":"var(--line)"}"/>`).join("")+'<circle r="2.4" fill="var(--paper)"/>')}
 function chJoin(c,quiet){if(!c||myCh(c))return;setChs((S.chs||[]).concat(Object.assign({id:"club_"+c.id,club:c.id,title:c.title,len:c.len,start:c.start,win:c.win||null,marks:{}},TODAY>c.start?{from:TODAY}:{})));clubApi("join",{ch:c.id,av:myAv()}).then(()=>clubStats());if(!quiet){haptic("success");toast("Ты в челлендже клуба! 🌸")}}
-function chMark(ch,c){if(!ch)return;const w=(c&&c.win)||ch.win;if(w&&!inWin(w)){toast(`Отметка — с ${w[0]} до ${w[1]} по Москве`);return}
+function chMark(ch,c){if(!ch)return;if((c&&isZr(c))||/зарядк/i.test(ch.title||"")){toast("Клубная зарядка засчитывается только после полного прохождения зарядки в приложении");return}const w=(c&&c.win)||ch.win;if(w&&!inWin(w)){toast(`Отметка — с ${w[0]} до ${w[1]} по Москве`);return}
   const nl=(S.chs||[]).map(x=>x.id===ch.id?Object.assign({},x,{marks:Object.assign({},x.marks,{[TODAY]:1})}):x);S.chs=nl;setBig("chs",nl);haptic("success");
   if(ch.club)clubApi("mark",{ch:ch.club,day:TODAY,v:1,av:myAv()}).then(()=>clubStats());
   setTimeout(checkChBadges,600);render();chCelebrate(nl.find(x=>x.id===ch.id),c)}
