@@ -798,6 +798,7 @@ function mqItems(){const L=[],cl=S.club||[];const act=cl.find(c=>{const d=diffDa
   if(up)L.push(["челлендж "+up.title,"начинаем "+fmtDate(up.start)]);
   else if(parseKey(TODAY).getUTCDate()>=22){const d=parseKey(TODAY);const nk=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,1)).toISOString().slice(0,10);const n=S.clubNext;
     L.push([n&&n.title&&n.start===nk?"челлендж "+n.title:"новый челлендж",fmtDate(nk)])}
+  if(!L.length)L.push(["Life by me","одна привычка в месяц"]);
   return L}
 function marquee(){const L=mqItems();if(!L.length)return null;const one=()=>L.map(([a,b])=>el("span",{},a+" → ",el("b",{},b)));
   const reps=Math.max(2,Math.ceil(4/L.length));const tr=el("div",{class:"tr"});for(let i=0;i<reps*2;i++)tr.append(...one());
@@ -1081,16 +1082,16 @@ function plUnlock(){try{const A=plBeep.a||(plBeep.a=new (window.AudioContext||wi
     if(!plUnlock.el){const a=new Audio("data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==");a.loop=true;a.volume=0.01;a.setAttribute("playsinline","");plUnlock.el=a}plUnlock.el.play().catch(()=>{})}catch(e){}}
 function plBeep(f,d){if(PL&&PL.mute)return;try{const A=plBeep.a||(plBeep.a=new (window.AudioContext||window.webkitAudioContext)());if(A.state==="suspended")A.resume();const o=A.createOscillator(),g=A.createGain();o.type="square";o.frequency.value=f||880;g.gain.setValueAtTime(.0001,A.currentTime);g.gain.exponentialRampToValueAtTime(.35,A.currentTime+.01);g.gain.exponentialRampToValueAtTime(.0001,A.currentTime+(d||.12));o.connect(g);g.connect(A.destination);o.start();o.stop(A.currentTime+(d||.12))}catch(e){}}
 function plStart(o){/* o:{title,list,k,mode:"wk"|"zr",restOpt} */const steps=plSteps(o.list,o.opt||plCfg());if(!steps.length)return;
-  PL=Object.assign({},o,{steps,i:0,end:Date.now()+steps[0].sec*1000,left:null,started:Date.now(),done:false,mute:PL&&PL.mute});
+  PL=Object.assign({},o,{steps,i:0,end:Date.now()+steps[0].sec*1000,left:null,started:Date.now(),done:false,complete:false,workDone:new Set(),mute:PL&&PL.mute});
   plUnlock();try{plBeep(660,.01)}catch(e){}try{if(navigator.wakeLock)navigator.wakeLock.request("screen").then(l=>{if(PL)PL.lock=l}).catch(()=>{})}catch(e){}
   if(inTG&&tg.BackButton)try{tg.BackButton.show()}catch(e){}
   clearInterval(plStart.t);plStart.t=setInterval(plTick,250);plDraw()}
-function plGo(i){if(!PL)return;if(i>=PL.steps.length){plFinish();return}i=Math.max(0,i);PL.i=i;PL.left=null;PL.add=0;PL.end=Date.now()+PL.steps[i].sec*1000;const s=PL.steps[i];
+function plGo(i){if(!PL)return;if(PL.mode==="zr"&&PL.steps[PL.i]?.kind==="work"&&plRem()<=0)PL.workDone.add(PL.i);if(i>=PL.steps.length){plFinish();return}i=Math.max(0,i);PL.i=i;PL.left=null;PL.add=0;PL.end=Date.now()+PL.steps[i].sec*1000;const s=PL.steps[i];
   if(s.kind==="work"){haptic("heavy");plBeep(1175,.45)}else{haptic("medium");plBeep(440,.45)}plDraw()}
 function plRem(){return PL.left!=null?PL.left:Math.max(0,PL.end-Date.now())}
 function plTick(){if(!PL||PL.done||PL.left!=null)return;const r=plRem();const sec=Math.ceil(r/1000);if(sec!==PL.lastSec){PL.lastSec=sec;if(sec<=3&&sec>0){const w=PL.steps[PL.i].kind==="work";plBeep(w?880:660,.14);haptic("light")}}if(r<=0){plGo(PL.i+1);return}plDraw(true)}
 function plPause(){if(!PL)return;if(PL.left==null){PL.left=plRem()}else{PL.end=Date.now()+PL.left;PL.left=null}haptic("light");plDraw()}
-function plFinish(){PL.done=true;clearInterval(plStart.t);haptic("success");plBeep(1175,.3);plDraw()}
+function plFinish(){if(!PL)return;PL.complete=PL.mode!=="zr"||PL.steps.every((s,i)=>s.kind!=="work"||PL.workDone.has(i));PL.done=true;clearInterval(plStart.t);if(PL.complete){haptic("success");plBeep(1175,.3)}plDraw()}
 function zrAutoMark(){const gOk=gardenRec();const chs=S.chs||[];let hit=null,late=false;const nl=chs.map(ch=>{const cd=diffDays(TODAY,ch.start)+1;if(cd<1||cd>ch.len||ch.marks[TODAY]===1)return ch;
     const c=ch.club?(S.club||[]).find(x=>x.id===ch.club):null;const isZr=ch.club?/зарядк/i.test((c&&c.title)||ch.title):/зарядк/i.test(ch.title);if(!isZr)return ch;
     const w=ch.club?((c&&c.win)||ch.win):null;if(w&&!inWin(w)){late=true;return ch}
@@ -1102,13 +1103,14 @@ function plDoneKeys(){const keys=new Set();if(!PL)return keys;const lastIdx=PL.d
   Object.entries(byEx).forEach(([k,js])=>{if(js.every(j=>j<lastIdx))keys.add(k)});return keys}
 function plClose(save){if(!PL)return;clearInterval(plStart.t);try{plUnlock.el&&plUnlock.el.pause()}catch(e){}try{PL.lock&&PL.lock.release()}catch(e){}const o=PL;const ov=$("player");if(ov)ov.remove();PL=null;document.body.style.overflow="";
   if(inTG&&tg.BackButton)try{((tab==="body"&&ui.care)||ui.heart||MODTABS.includes(tab))?tg.BackButton.show():tg.BackButton.hide()}catch(e){}
-  if(save){const d=day(o.k);const mins=Math.max(1,Math.round((Date.now()-o.started)/60000));
+  if(save&&(o.mode!=="zr"||(o.done&&o.complete))){const d=day(o.k);const mins=Math.max(1,Math.round((Date.now()-o.started)/60000));
     if(o.mode==="zr"){setDay(o.k,Object.assign({},d,{zr:true,zrm:mins}));if(o.done&&o.k===TODAY)zrAutoMark()}
     else if(o.sid){setDay(o.k,Object.assign({},d,{wks:wkSess(d).map(x=>x.id===o.sid?Object.assign({},x,{done:true,m:mins},o.feel?{feel:o.feel}:{}):x)}))}
     else{const keys=[...o.doneKeys];const wkd=[...new Set((d.wkd||[]).concat(keys))];setDay(o.k,Object.assign({},d,{wkt:o.type,wkv:o.vid,wkd,wmin:mins},o.feel?{feel:o.feel}:{}))}
-    toast(o.mode==="zr"?"Зарядка сделана! ☀️":"Тренировка сохранена 💪")}else render()}
+    toast(o.mode==="zr"?"Зарядка сделана! ☀️":"Тренировка сохранена 💪")}else{render();if(o.mode==="zr"&&!o.complete)toast("Зарядка не засчитана: пройди её до конца")}}
 function fmtT(ms){const s=Math.ceil(ms/1000),m=Math.floor(s/60);return `${m}:${String(s%60).padStart(2,"0")}`}
 function plDraw(light){if(!PL)return;let ov=$("player");if(!ov){ov=el("div",{id:"player",class:"pl",role:"dialog","aria-modal":"true","aria-label":PL.title});document.body.append(ov);document.body.style.overflow="hidden";light=false}
+  if(PL.done&&PL.mode==="zr"&&!PL.complete){ov.replaceChildren(el("div",{class:"fin"},el("div",{class:"big","aria-hidden":"true"},"🌿"),el("h2",{class:"n"},"Зарядка не завершена"),el("p",{class:"muted",style:"margin:0"},"Для зачёта нужно пройти все упражнения до конца."),el("button",{class:"btn full",type:"button",onclick:()=>plClose(false)},"Закрыть без зачёта")));return}
   if(PL.done){PL.doneKeys=PL.doneKeys||plDoneKeys();const mins=Math.max(1,Math.round((Date.now()-PL.started)/60000));const nEx=new Set(PL.steps.filter(s=>s.kind==="work").map(s=>s.key)).size;
     const fe=el("div",{class:"scale",style:"justify-content:center"});if(PL.mode!=="zr")["легко","нормально","тяжело"].forEach(f=>fe.append(el("button",{class:"chip",type:"button","aria-pressed":PL.feel===f?"true":"false",onclick:()=>{PL.feel=PL.feel===f?null:f;plDraw()}},f)));
     ov.replaceChildren(el("div",{class:"fin"},el("div",{class:"big","aria-hidden":"true"},PL.mode==="zr"?"☀️":"🎉"),el("h2",{class:"n"},PL.mode==="zr"?"Зарядка завершена!":"Тренировка завершена!"),
@@ -1130,9 +1132,9 @@ function plDraw(light){if(!PL)return;let ov=$("player");if(!ov){ov=el("div",{id:
   const top=el("div",{class:"top"},el("button",{class:"rb",type:"button","aria-label":"Закончить",onclick:()=>{PL.left=PL.left??plRem();PL.ask=true;plDraw()}},ic(I.x)),
     W?prog:el("span",{class:"tl"},s.kind==="prep"?"Приготовься":`Отдых · ${wi} из ${works} готово`),
     el("button",{class:"rb",type:"button","aria-label":PL.mute?"Включить звук":"Выключить звук",onclick:()=>{PL.mute=!PL.mute;plDraw()}},ic(PL.mute?I.off:I.on)));
-  const ask=PL.ask?el("div",{class:"ask"},el("b",{},zr?"Закончить зарядку?":"Закончить тренировку?"),el("span",{class:"sub"},"Отмечу упражнения, которые уже сделаны."),
-      el("div",{class:"row2"},el("button",{class:"btn",type:"button",onclick:()=>{PL.doneKeys=plDoneKeys();plClose(true)}},"Закончить"),el("button",{class:"btn ghost",type:"button",onclick:()=>{PL.ask=false;plPause()}},"Продолжить")),
-      el("button",{type:"button",style:"border:0;background:none;color:var(--muted);text-decoration:underline;font-size:.88rem;padding:4px",onclick:()=>plClose(false)},"выйти без сохранения")):null;
+  const ask=PL.ask?el("div",{class:"ask"},el("b",{},zr?"Выйти из зарядки?":"Закончить тренировку?"),el("span",{class:"sub"},zr?"Зарядка засчитывается только после всех упражнений. При выходе отметки не будет.":"Отмечу упражнения, которые уже сделаны."),
+      el("div",{class:"row2"},el("button",{class:"btn",type:"button",onclick:()=>{if(zr)plClose(false);else{PL.doneKeys=plDoneKeys();plClose(true)}}},zr?"Выйти без зачёта":"Закончить"),el("button",{class:"btn ghost",type:"button",onclick:()=>{PL.ask=false;plPause()}},"Продолжить")),
+      zr?null:el("button",{type:"button",style:"border:0;background:none;color:var(--muted);text-decoration:underline;font-size:.88rem;padding:4px",onclick:()=>plClose(false)},"выйти без сохранения")):null;
   const paused=PL.left!=null&&!PL.ask;
   if(W){
     const v=vid(s.key);
@@ -1407,7 +1409,7 @@ function render(){if(!loaded){$("app").replaceChildren(el("div",{class:"brand"},
   if(S.acc&&S.acc.ok===false){document.body.dataset.skin=curSkin();renderPaywall();return}
   if(!S.settings.mods){S.settings=Object.assign({},S.settings,{mods:modsDerive()});store.set("settings",S.settings)}
   if(MODTABS.includes(tab)&&!tabOk(tab))tab="today";
-  document.body.dataset.skin=curSkin();$("tabbar").hidden=false;if(inTG&&tg.BackButton){try{((tab==="body"&&ui.care)||ui.heart||MODTABS.includes(tab))?tg.BackButton.show():tg.BackButton.hide()}catch(e){}}document.querySelectorAll("#tabbar [data-go]").forEach(b=>b.setAttribute("aria-selected",b.dataset.go===tab&&!ui.heart?"true":"false"));const app=$("app");app.replaceChildren(topBar());const mq=tab==="today"?null:marquee();if(mq)app.append(mq);
+  document.body.dataset.skin=curSkin();$("tabbar").hidden=false;if(inTG&&tg.BackButton){try{((tab==="body"&&ui.care)||ui.heart||MODTABS.includes(tab))?tg.BackButton.show():tg.BackButton.hide()}catch(e){}}document.querySelectorAll("#tabbar [data-go]").forEach(b=>b.setAttribute("aria-selected",b.dataset.go===tab&&!ui.heart?"true":"false"));const app=$("app");app.replaceChildren(topBar());const mq=marquee();if(mq)app.append(mq);
   if(ui.heart){renderHeart(app);return}
   ({today:renderToday,path:renderPath,club:renderClub,plan:renderPlan,week:renderWeek,dream:renderDream,money:renderMoney,body:renderBody,me:renderMe})[tab](app)}
 
