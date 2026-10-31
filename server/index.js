@@ -672,9 +672,9 @@ async function broadcast(text, kb, opts) {
 let CLUB = null, CLUBF = null, CLUB_AT = 0;
 async function clubFull() {
   if (CLUBF && Date.now() - CLUB_AT < 10 * 60e3) return CLUBF;
-  try { const r = await fetch(APP_URL().replace(/\/?$/, "/") + "club.json?t=" + Date.now()); const j = await r.json(); CLUBF = j || {}; CLUB = (j.challenges || []).filter(c => c && c.id && c.start && c.len); CLUB_AT = Date.now();
+  try { const r = await fetch(APP_URL().replace(/\/?$/, "/") + "club.json?t=" + Date.now(), { signal: AbortSignal.timeout(1000) }); const j = await r.json(); CLUBF = j || {}; CLUB = (j.challenges || []).filter(c => c && c.id && c.start && c.len); CLUB_AT = Date.now();
     try { const sp = (await db().kvAll(0)).posts; if (sp) CLUBF.posts = JSON.parse(sp); } catch (e) {} } // анонсы, изменённые в боте, важнее файла
-  catch (e) { console.log("club.json", e && e.message); CLUBF = CLUBF || { challenges: CLUB || [] }; CLUB = CLUB || []; }
+  catch (e) { console.log("club.json", e && e.message); CLUBF = CLUBF || { challenges: CLUB || [] }; CLUB = CLUB || []; CLUB_AT = Date.now(); }
   return CLUBF;
 }
 async function clubConfig() { await clubFull(); return CLUB || []; }
@@ -853,7 +853,7 @@ async function setup(selfUrl, fid) {
   const out = {};
   const hook = env("TG_API") && fid ? `${TG_BASE()}/hook/${fid}` : selfUrl + "?a=tg";
   out.hook = hook;
-  out.webhook = await tg("setWebhook", { url: hook, secret_token: env("WEBHOOK_SECRET"), allowed_updates: ["message", "callback_query", "chat_join_request"], drop_pending_updates: true });
+  out.webhook = await tg("setWebhook", { url: hook, secret_token: env("WEBHOOK_SECRET"), allowed_updates: ["message", "callback_query", "chat_join_request"], drop_pending_updates: false });
   out.commands = await tg("setMyCommands", { commands: [{ command: "start", description: "Вступить в клуб" }, { command: "app", description: "Открыть приложение" }, { command: "club", description: "Канал клуба" }, ...(PAID() ? [{ command: "plans", description: "Подписка" }] : []), { command: "invite", description: "Пригласить друга" }, { command: "remind", description: "Напоминания о челлендже" }, { command: "help", description: "Вопросы и поддержка" }, { command: "delete", description: "Удалить мои данные" }] });
   out.description = await tg("setMyDescription", { description: T.botDescription });
   out.menu = await tg("setChatMenuButton", { menu_button: { type: "web_app", text: "Открыть клуб", web_app: { url: APP_URL() } } });
