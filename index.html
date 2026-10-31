@@ -803,7 +803,7 @@ function marquee(){const L=mqItems();if(!L.length)return null;const one=()=>L.ma
   const reps=Math.max(2,Math.ceil(4/L.length));const tr=el("div",{class:"tr"});for(let i=0;i<reps*2;i++)tr.append(...one());
   return el("div",{class:"mq",role:"marquee","aria-label":L.map(([a,b])=>a+" — "+b).join("; "),onclick:()=>{show("today")}},tr)}
 function topBar(){return el("div",{class:"brand"},el("span",{class:"logo"},"Life by me"),el("span",{class:"club"},"club"),el("button",{class:"hb",type:"button","aria-label":"Быстрый доступ",onclick:()=>{haptic("light");ui.heart=!ui.heart;render();window.scrollTo(0,0)}},ui.heart?"✕":"♡"))}
-const QUICK=[["tasks","📅","Мои дела","today"],["week","🗓","Неделя","week"],["dream","✨","Будущее мечты","dream"],["money","💸","Деньги","money"],["badges","🏅","Мои значки",null],
+const QUICK=[["tasks","📅","Мои дела","me"],["week","🗓","Неделя","week"],["dream","✨","Будущее мечты","dream"],["money","💸","Деньги","money"],["badges","🏅","Мои значки",null],
  ["training","🏋️","Тренировки","body:training"],["cycle","🩸","Цикл","body:cycle"],["weight","⚖️","Вес","body:weight"],["beauty","💅","Красота","body:beauty"],["doctors","🩺","Врачи","body:doctors"],["health","🤍","Здоровье","body:health"],["me","👤","Мой путь","me"]];
 function quickList(){const c=cfg();const all=QUICK.filter(q=>!(q[0]==="cycle"&&c.sex==="m")&&!CARE_HIDDEN.includes(q[0])&&(!QMOD[q[0]]||modOn(QMOD[q[0]])));const sel=(S.settings&&S.settings.quick)||(c.sex==="m"?["tasks","training","badges","money"]:["tasks","cycle","badges","dream"]);return [all,sel.filter(id=>all.some(q=>q[0]===id))]}
 function quickGo(to){ui.heart=false;ui.qBadges=false;if(to.startsWith("body:")){goCare(to.slice(5))}else{show(to);if(to==="today")setTimeout(()=>{const t=document.getElementById("tIn");if(t)t.scrollIntoView({block:"center"})},60)}window.scrollTo(0,0)}
@@ -2301,6 +2301,7 @@ function firstDayCard(){const c=cfg();if((S.settings||{}).fdDone||clubDays()>7)r
     el("div",{class:"row2"},!steps[1][1]?el("button",{class:"btn ghost",type:"button",onclick:()=>{ob={step:4,data:Object.assign({},DEF,S.settings)};renderOb()}},"Выбрать привычки"):null,
       !steps[2][1]?el("button",{class:"btn",type:"button",onclick:()=>{zrGo(6,TODAY)}},"▶ Зарядка 6 минут"):null))}
 function renderMe(app){const c=cfg();app.append(el("div",{class:"hero"},el("div",{},el("div",{class:"date"},"личное пространство"),el("h1",{},"Моё"))));
+  app.append(habitsCard());if(modOn("tasks"))app.append(todayPersonalCard());
   const days=histCnt(1),str=histCnt(2);
   app.append(el("div",{class:"card"},el("h2",{},"Мой путь в клубе"),el("div",{class:"grid3"},
     el("div",{},el("b",{style:"font-family:var(--display);font-size:1.6rem;display:block"},days),el("span",{class:"muted",style:"font-size:.8rem"},"дней с отметками")),
