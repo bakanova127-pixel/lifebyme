@@ -2037,9 +2037,9 @@ function chMark(ch,c){if(!ch)return;if((c&&isZr(c))||/зарядк/i.test(ch.tit
   setTimeout(checkChBadges,600);render();chCelebrate(nl.find(x=>x.id===ch.id),c)}
 function chMood(ch,v){const nl=(S.chs||[]).map(x=>x.id===ch.id?Object.assign({},x,{mood:Object.assign({},x.mood||{},{[TODAY]:v})}):x);haptic("light");setChs(nl)}
 function zrBtns(ch,c,canMark){const w=el("div",{class:"zrb"});
-  w.append(el("div",{class:"row2"},el("button",{class:"btn",type:"button",onclick:()=>zrGo(6)},"6 минут"),el("button",{class:"btn zr12",type:"button",onclick:()=>zrGo(12)},"12 минут")),
+  w.append(el("div",{class:"row2"},el("button",{class:"btn ghost",type:"button",onclick:()=>zrGo(6)},"6 минут"),el("button",{class:"btn ghost zr12",type:"button",onclick:()=>zrGo(12)},"12 минут")),
     el("button",{class:"btn ghost full",type:"button",onclick:()=>zrGo(2)},"2 минуты"));
-  return w}
+  if(canMark)w.append(el("span",{class:"muted",style:"font-size:.8rem;text-align:center"},"Лепесток раскроется, когда закончишь зарядку 🌸"));return w}
 function flowerCard(){const c=clubAct();const card=el("div",{class:"card flc"});
   if(c){const ch=myCh(c);
     if(!ch){card.append(el("span",{class:"eyebrow"},"челлендж клуба"),el("p",{class:"flt"},clubName(c)),c.desc?el("p",{style:"margin:0"},c.desc):null,el("button",{class:"btn full",type:"button",onclick:()=>chJoin(c)},"Вступить в челлендж"));return card}
@@ -2102,9 +2102,10 @@ function bdayCards(app){const c=cfg(),cur=TODAY,off=0,dd=parseKey(TODAY);
     app.append(el("div",{class:"card bday"},conf,el("span",{class:"big"},`С днём рождения${c.name?", "+c.name:""}!`),el("h2",{},"🎂"),el("p",{style:"margin:0;position:relative"},BDAY_WISHES[dd.getUTCFullYear()%BDAY_WISHES.length]),el("p",{class:"muted",style:"margin:0;position:relative;font-size:.85rem"},"С любовью, Яна и весь Life by me Club 🌸")));
     if(off===0&&!render._bd){render._bd=1;setTimeout(()=>haptic("success"),300)}}
   else if(bi&&bi.days>0&&bi.days<=7)app.append(el("div",{class:"card",style:"flex-direction:row;align-items:center;gap:10px"},el("span",{style:"font-size:1.6rem"},"🎁"),el("span",{},`До твоего дня рождения ${bi.days} ${bi.days===1?"день":bi.days<5?"дня":"дней"}!`)));}
-function renderToday(app){cur=TODAY;
-  app.append(el("div",{class:"charge-only"},el("h1",{},"Зарядка"),zrBtns(null,clubAct(),true)));
-}
+function renderToday(app){cur=TODAY;const c=cfg(),dd=parseKey(TODAY);const pills=el("div",{class:"pills"});
+  if(S.acc&&S.acc.kind==="trial")pills.append(el("span",{class:"pill",role:"button",tabindex:"0",style:"cursor:pointer",onclick:()=>openBot("plans")},`🎁 пробный: ${S.acc.daysLeft} ${plural(S.acc.daysLeft,"день","дня","дней")}`));
+  app.append(el("header",{class:"hero"},el("div",{},el("div",{class:"date"},`${WDF[dd.getUTCDay()]}, ${fmtDate(TODAY)}`),el("h1",{},c.name?`Привет, ${c.name}`:"Привет!"),pills.childNodes.length?pills:null)));
+  bdayCards(app);{const ac=clubAct();const gz=gardenOn()&&garden()&&!(ac&&isZr(ac)&&myCh(ac));app.append(flowerCard());if(gz)app.append(gardenCard())}if(gardenOn()&&!ui.gSynced){ui.gSynced=1;gardenSync(true)}app.append(habitsCard());if(modOn("tasks"))app.append(todayPersonalCard());app.append(todayToolsCard())}
 
 function renderPath(app){const c=cfg();app.append(el("div",{class:"hero"},el("div",{},el("div",{class:"date"},"твои достижения"),el("h1",{},"Мой путь"))));const g=gardenOn()?garden():null;if(g)app.append(gardenCard());app.append(el("div",{class:"card"},el("h2",{},"Мой прогресс"),el("div",{class:"grid3"},el("div",{},el("b",{},histCnt(1)),el("span",{class:"muted"},"дней с отметками")),el("div",{},el("b",{},(S.gifts&&S.gifts.bq)||0),el("span",{class:"muted"},"цветов в букете")),el("div",{},el("b",{},Math.max(0,...(c.habits||[]).map(streak))),el("span",{class:"muted"},"лучшая серия")))));app.append(badgesCard());app.append(supportBouquetCard(true))}
 /* ---------- вкладка «Клуб» ---------- */
