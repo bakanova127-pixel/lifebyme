@@ -38,15 +38,32 @@ export default async function handler(req) {
   const init = { method: req.method, headers };
   if (req.method !== "GET" && req.method !== "HEAD") init.body = await req.arrayBuffer();
 
+  // Never let a stalled upstream exhaust Vercel's 25-second execution limit.
+  // Do not log the path: /bot<token>/... contains the bot credential.
+  const route = path.startsWith("/hook/") ? "webhook" : "telegram-api";
+  const timeoutMs = route === "webhook" ? 9000 : 6000;
+  const started = Date.now();
   try {
-    const r = await fetch(target, init);
-    const out = new Headers();
-    const ct = r.headers.get("content-type");
-    if (ct) out.set("content-type", ct);
-    return new Response(r.body, { status: r.status, headers: out });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    let r;
+    try {
+      r = await fetch(target, { ...init, signal: controller.signal });
+      // Read before clearing timeout, so stalled response bodies are also bounded.
+      const body = await r.arrayBuffer();
+      const out = new Headers();
+      const ct = r.headers.get("content-type");
+      if (ct) out.set("content-type", ct);
+      if (!r.ok || Date.now() - started > 1500) console.log(JSON.stringify({ route, status: r.status, ms: Date.now() - started }));
+      return new Response(body, { status: r.status, headers: out });
+    } finally {
+      clearTimeout(timer);
+    }
   } catch (e) {
-    return new Response(JSON.stringify({ ok: false, description: "relay: " + String(e && e.message || e) }), {
-      status: 502, headers: { "content-type": "application/json" },
+    const timedOut = e && e.name === "AbortError";
+    console.error(JSON.stringify({ route, error: timedOut ? "upstream_timeout" : "upstream_network_error", ms: Date.now() - started }));
+    return new Response(JSON.stringify({ ok: false, description: timedOut ? "relay upstream timeout" : "relay upstream unavailable" }), {
+      status: timedOut ? 504 : 502, headers: { "content-type": "application/json" },
     });
   }
 }
