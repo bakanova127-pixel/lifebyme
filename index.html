@@ -672,6 +672,7 @@ html,body{background:#ffffff!important;color:#111111}
 .tabbar .in{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:2px;max-width:520px;width:100%}
 .tabbar .in button{min-width:0;max-width:100%;width:100%;white-space:nowrap;font-size:clamp(.57rem,2.4vw,.69rem);padding:7px 0}
 .tabbar .in svg{width:21px;height:21px;flex-shrink:0}
+.charge-only{display:flex;flex-direction:column;gap:26px;padding-top:42px}.charge-only h1{text-align:center;font-size:2.15rem;font-weight:700}.charge-only .zrb{display:flex;flex-direction:column;gap:14px}.charge-only .row2{gap:12px}.charge-only .row2 .btn{flex:1;min-height:68px}.charge-only .zrb>.btn{min-height:64px}
 </style>
 </head>
 <body>
@@ -1407,7 +1408,7 @@ function render(){if(!loaded){$("app").replaceChildren(el("div",{class:"brand"},
   if(S.acc&&S.acc.ok===false){document.body.dataset.skin=curSkin();renderPaywall();return}
   if(!S.settings.mods){S.settings=Object.assign({},S.settings,{mods:modsDerive()});store.set("settings",S.settings)}
   if(MODTABS.includes(tab)&&!tabOk(tab))tab="today";
-  document.body.dataset.skin=curSkin();$("tabbar").hidden=false;if(inTG&&tg.BackButton){try{((tab==="body"&&ui.care)||ui.heart||MODTABS.includes(tab))?tg.BackButton.show():tg.BackButton.hide()}catch(e){}}document.querySelectorAll("#tabbar [data-go]").forEach(b=>b.setAttribute("aria-selected",b.dataset.go===tab&&!ui.heart?"true":"false"));const app=$("app");app.replaceChildren(topBar());const mq=marquee();if(mq)app.append(mq);
+  document.body.dataset.skin=curSkin();$("tabbar").hidden=false;if(inTG&&tg.BackButton){try{((tab==="body"&&ui.care)||ui.heart||MODTABS.includes(tab))?tg.BackButton.show():tg.BackButton.hide()}catch(e){}}document.querySelectorAll("#tabbar [data-go]").forEach(b=>b.setAttribute("aria-selected",b.dataset.go===tab&&!ui.heart?"true":"false"));const app=$("app");app.replaceChildren(topBar());const mq=tab==="today"?null:marquee();if(mq)app.append(mq);
   if(ui.heart){renderHeart(app);return}
   ({today:renderToday,path:renderPath,club:renderClub,plan:renderPlan,week:renderWeek,dream:renderDream,money:renderMoney,body:renderBody,me:renderMe})[tab](app)}
 
@@ -2036,9 +2037,9 @@ function chMark(ch,c){if(!ch)return;if((c&&isZr(c))||/зарядк/i.test(ch.tit
   setTimeout(checkChBadges,600);render();chCelebrate(nl.find(x=>x.id===ch.id),c)}
 function chMood(ch,v){const nl=(S.chs||[]).map(x=>x.id===ch.id?Object.assign({},x,{mood:Object.assign({},x.mood||{},{[TODAY]:v})}):x);haptic("light");setChs(nl)}
 function zrBtns(ch,c,canMark){const w=el("div",{class:"zrb"});
-  w.append(el("button",{class:"btn full zr-primary",type:"button",onclick:()=>zrGo(6)},"▶ Начать зарядку"),el("span",{class:"muted",style:"font-size:.82rem;text-align:center"},"Или выбери длительность"),el("div",{class:"row2"},el("button",{class:"btn ghost",type:"button",onclick:()=>zrGo(6)},"6 минут"),el("button",{class:"btn ghost zr12",type:"button",onclick:()=>zrGo(12)},"12 минут")),
-    el("button",{class:"btn ghost full",type:"button",onclick:()=>zrGo(2)},"Ленивый день · 2 мин"));
-  if(canMark)w.append(el("span",{class:"muted",style:"font-size:.8rem;text-align:center"},"Лепесток раскроется, когда закончишь зарядку 🌸"));return w}
+  w.append(el("div",{class:"row2"},el("button",{class:"btn",type:"button",onclick:()=>zrGo(6)},"6 минут"),el("button",{class:"btn zr12",type:"button",onclick:()=>zrGo(12)},"12 минут")),
+    el("button",{class:"btn ghost full",type:"button",onclick:()=>zrGo(2)},"2 минуты"));
+  return w}
 function flowerCard(){const c=clubAct();const card=el("div",{class:"card flc"});
   if(c){const ch=myCh(c);
     if(!ch){card.append(el("span",{class:"eyebrow"},"челлендж клуба"),el("p",{class:"flt"},clubName(c)),c.desc?el("p",{style:"margin:0"},c.desc):null,el("button",{class:"btn full",type:"button",onclick:()=>chJoin(c)},"Вступить в челлендж"));return card}
@@ -2101,10 +2102,9 @@ function bdayCards(app){const c=cfg(),cur=TODAY,off=0,dd=parseKey(TODAY);
     app.append(el("div",{class:"card bday"},conf,el("span",{class:"big"},`С днём рождения${c.name?", "+c.name:""}!`),el("h2",{},"🎂"),el("p",{style:"margin:0;position:relative"},BDAY_WISHES[dd.getUTCFullYear()%BDAY_WISHES.length]),el("p",{class:"muted",style:"margin:0;position:relative;font-size:.85rem"},"С любовью, Яна и весь Life by me Club 🌸")));
     if(off===0&&!render._bd){render._bd=1;setTimeout(()=>haptic("success"),300)}}
   else if(bi&&bi.days>0&&bi.days<=7)app.append(el("div",{class:"card",style:"flex-direction:row;align-items:center;gap:10px"},el("span",{style:"font-size:1.6rem"},"🎁"),el("span",{},`До твоего дня рождения ${bi.days} ${bi.days===1?"день":bi.days<5?"дня":"дней"}!`)));}
-function renderToday(app){cur=TODAY;const c=cfg(),dd=parseKey(TODAY);const pills=el("div",{class:"pills"});
-  if(S.acc&&S.acc.kind==="trial")pills.append(el("span",{class:"pill",role:"button",tabindex:"0",style:"cursor:pointer",onclick:()=>openBot("plans")},`🎁 пробный: ${S.acc.daysLeft} ${plural(S.acc.daysLeft,"день","дня","дней")}`));
-  app.append(el("header",{class:"hero"},el("div",{},el("div",{class:"date"},`${WDF[dd.getUTCDay()]}, ${fmtDate(TODAY)}`),el("h1",{},c.name?`Привет, ${c.name}`:"Привет!"),pills.childNodes.length?pills:null)));
-  bdayCards(app);{const ac=clubAct();const gz=gardenOn()&&garden()&&!(ac&&isZr(ac)&&myCh(ac));app.append(flowerCard());if(gz)app.append(gardenCard())}if(gardenOn()&&!ui.gSynced){ui.gSynced=1;gardenSync(true)}app.append(habitsCard());if(modOn("tasks"))app.append(todayPersonalCard());app.append(todayToolsCard())}
+function renderToday(app){cur=TODAY;
+  app.append(el("div",{class:"charge-only"},el("h1",{},"Зарядка"),zrBtns(null,clubAct(),true)));
+}
 
 function renderPath(app){const c=cfg();app.append(el("div",{class:"hero"},el("div",{},el("div",{class:"date"},"твои достижения"),el("h1",{},"Мой путь"))));const g=gardenOn()?garden():null;if(g)app.append(gardenCard());app.append(el("div",{class:"card"},el("h2",{},"Мой прогресс"),el("div",{class:"grid3"},el("div",{},el("b",{},histCnt(1)),el("span",{class:"muted"},"дней с отметками")),el("div",{},el("b",{},(S.gifts&&S.gifts.bq)||0),el("span",{class:"muted"},"цветов в букете")),el("div",{},el("b",{},Math.max(0,...(c.habits||[]).map(streak))),el("span",{class:"muted"},"лучшая серия")))));app.append(badgesCard());app.append(supportBouquetCard(true))}
 /* ---------- вкладка «Клуб» ---------- */
