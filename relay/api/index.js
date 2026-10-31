@@ -7,7 +7,7 @@
 //   /file/bot<токен>/...  -> api.telegram.org — скачивание голосовых
 //   /hook/<id функции>    -> облачная функция — входящие сообщения от Telegram
 
-export const config = { runtime: "edge" };
+export const config = { runtime: "edge", regions: ["fra1"] };
 
 const TG = "https://api.telegram.org";
 const YC = "https://functions.yandexcloud.net";
