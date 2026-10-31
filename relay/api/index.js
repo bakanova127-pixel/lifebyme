@@ -54,7 +54,7 @@ export default async function handler(req) {
       const out = new Headers();
       const ct = r.headers.get("content-type");
       if (ct) out.set("content-type", ct);
-      if (!r.ok || Date.now() - started > 1500) console.log(JSON.stringify({ route, status: r.status, ms: Date.now() - started }));
+      if (route === "webhook" || !r.ok || Date.now() - started > 1500) console.log(JSON.stringify({ route, status: r.status, ms: Date.now() - started }));
       return new Response(body, { status: r.status, headers: out });
     } finally {
       clearTimeout(timer);
