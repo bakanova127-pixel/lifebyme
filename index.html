@@ -648,6 +648,23 @@ body[data-skin] .cel h2{font-size:2.3rem;font-weight:300;margin:0;line-height:1.
 .today-tools button{min-height:44px}.support-open{margin-top:12px}
 @media(prefers-reduced-motion:no-preference){.gift-bloom.gift-pop{animation:giftPop .45s ease-out}@keyframes giftPop{0%{transform:scale(.65) rotate(-15deg)}70%{transform:scale(1.15) rotate(6deg)}100%{transform:scale(1)}}}
 
+
+/* Life by Me / 2026 design refresh: monochrome with vivid red, all genders */
+:root,body,body[data-skin],body[data-skin="minimal"],:root[data-theme="light"] body{--bg:#f6f6f6;--paper:#ffffff;--ink:#171717;--muted:#696969;--line:#e9e9e9;--rose:#e2333d;--rose-soft:#ffe8e9;--on-accent:#ffffff;--sage:#37936e;--sage-soft:#e5f3eb;--butter:#ffd35e;--shadow:0 8px 28px -20px rgba(0,0,0,.22)}
+:root[data-theme="dark"] body,:root:not([data-theme="light"]) body[data-skin]{--bg:#151515;--paper:#222;--ink:#f7f7f7;--muted:#b1b1b1;--line:#353535;--rose:#ff4b56;--rose-soft:#43292c;--on-accent:#fff;--sage:#7ab997;--sage-soft:#26392e;--shadow:0 8px 26px -18px rgba(0,0,0,.75)}
+body{background-image:none;font-family:"Manrope",system-ui,sans-serif}
+h1,h2,h3{font-family:"Manrope",system-ui,sans-serif;letter-spacing:-.025em}
+.brand .logo{font-family:"Manrope",system-ui,sans-serif;font-size:1.3rem;font-weight:800;letter-spacing:-.05em}
+.card{border-radius:24px;padding:20px;box-shadow:var(--shadow)}
+.btn{border-radius:17px;min-height:48px;transition:transform .16s ease,filter .16s ease}
+.btn:active,.check:active{transform:scale(.96)}
+.chip,.pill,.tile{transition:transform .16s ease}
+.zr-primary{font-size:1.08rem;padding:17px 18px;box-shadow:0 9px 22px -13px var(--rose)}
+.flw-wrap svg,.gbed svg{filter:saturate(1.35) drop-shadow(0 5px 7px rgba(230,50,60,.13))}
+.check[aria-pressed="true"] svg{animation:lbmkiss .28s cubic-bezier(.2,1.7,.4,1)}
+@keyframes lbmkiss{from{transform:scale(.65) rotate(-10deg);opacity:.5}to{transform:scale(1);opacity:1}}
+.tabbar .in{gap:2px}.tabbar button{font-size:.69rem;min-width:0;flex:1;padding-left:2px;padding-right:2px}
+@media(prefers-reduced-motion:reduce){.btn,.chip,.pill,.tile{transition:none}.check[aria-pressed="true"] svg{animation:none}}
 </style>
 </head>
 <body>
@@ -656,8 +673,9 @@ body[data-skin] .cel h2{font-size:2.3rem;font-weight:300;margin:0;line-height:1.
   <main class="app" id="app"></main>
   <nav class="tabbar" id="tabbar" hidden aria-label="Разделы"><div class="in" role="tablist">
     <button type="button" role="tab" data-go="today"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>Сегодня</button>
+    <button type="button" role="tab" data-go="path"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 21s-8-4.7-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 10c0 6.3-8 11-8 11Z"/><path d="M9 14c2-3 4-3 6-5"/></svg>Мой путь</button>
     <button type="button" role="tab" data-go="club"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M15 14.5c3 0 6 2 6 5.5"/></svg>Клуб</button>
-    <button type="button" role="tab" data-go="me"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>Я</button>
+    <button type="button" role="tab" data-go="me"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>Моё</button>
   </div></nav>
   <div class="toast" id="toast" hidden></div>
 </div></div>
@@ -1384,7 +1402,7 @@ function render(){if(!loaded){$("app").replaceChildren(el("div",{class:"brand"},
   if(MODTABS.includes(tab)&&!tabOk(tab))tab="today";
   document.body.dataset.skin=curSkin();$("tabbar").hidden=false;if(inTG&&tg.BackButton){try{((tab==="body"&&ui.care)||ui.heart||MODTABS.includes(tab))?tg.BackButton.show():tg.BackButton.hide()}catch(e){}}document.querySelectorAll("#tabbar [data-go]").forEach(b=>b.setAttribute("aria-selected",b.dataset.go===tab&&!ui.heart?"true":"false"));const app=$("app");app.replaceChildren(topBar());const mq=marquee();if(mq)app.append(mq);
   if(ui.heart){renderHeart(app);return}
-  ({today:renderToday,club:renderClub,plan:renderPlan,week:renderWeek,dream:renderDream,money:renderMoney,body:renderBody,me:renderMe})[tab](app)}
+  ({today:renderToday,path:renderPath,club:renderClub,plan:renderPlan,week:renderWeek,dream:renderDream,money:renderMoney,body:renderBody,me:renderMe})[tab](app)}
 
 /* ---------- history, badges, club ---------- */
 const API="https://functions.yandexcloud.net/d4emt5ttqi4gert20199";/* адрес функции Yandex Cloud — после подключения сервера */
@@ -2011,7 +2029,7 @@ function chMark(ch,c){if(!ch)return;const w=(c&&c.win)||ch.win;if(w&&!inWin(w)){
   setTimeout(checkChBadges,600);render();chCelebrate(nl.find(x=>x.id===ch.id),c)}
 function chMood(ch,v){const nl=(S.chs||[]).map(x=>x.id===ch.id?Object.assign({},x,{mood:Object.assign({},x.mood||{},{[TODAY]:v})}):x);haptic("light");setChs(nl)}
 function zrBtns(ch,c,canMark){const w=el("div",{class:"zrb"});
-  w.append(el("span",{class:"muted",style:"font-size:.85rem;text-align:center"},"Зарядка"),el("div",{class:"row2"},el("button",{class:"btn",type:"button",onclick:()=>zrGo(6)},"6 минут"),el("button",{class:"btn zr12",type:"button",onclick:()=>zrGo(12)},"12 минут")),
+  w.append(el("button",{class:"btn full zr-primary",type:"button",onclick:()=>zrGo(6)},"▶ Начать зарядку"),el("span",{class:"muted",style:"font-size:.82rem;text-align:center"},"Или выбери длительность"),el("div",{class:"row2"},el("button",{class:"btn ghost",type:"button",onclick:()=>zrGo(6)},"6 минут"),el("button",{class:"btn ghost zr12",type:"button",onclick:()=>zrGo(12)},"12 минут")),
     el("button",{class:"btn ghost full",type:"button",onclick:()=>zrGo(2)},"Ленивый день · 2 мин"));
   if(canMark)w.append(el("span",{class:"muted",style:"font-size:.8rem;text-align:center"},"Лепесток раскроется, когда закончишь зарядку 🌸"));return w}
 function flowerCard(){const c=clubAct();const card=el("div",{class:"card flc"});
@@ -2081,6 +2099,7 @@ function renderToday(app){cur=TODAY;const c=cfg(),dd=parseKey(TODAY);const pills
   app.append(el("header",{class:"hero"},el("div",{},el("div",{class:"date"},`${WDF[dd.getUTCDay()]}, ${fmtDate(TODAY)}`),el("h1",{},c.name?`Привет, ${c.name}`:"Привет!"),pills.childNodes.length?pills:null)));
   bdayCards(app);{const ac=clubAct();const gz=gardenOn()&&garden()&&!(ac&&isZr(ac)&&myCh(ac));app.append(flowerCard());if(gz)app.append(gardenCard())}if(gardenOn()&&!ui.gSynced){ui.gSynced=1;gardenSync(true)}app.append(habitsCard());if(modOn("tasks"))app.append(todayPersonalCard());app.append(todayToolsCard())}
 
+function renderPath(app){const c=cfg();app.append(el("div",{class:"hero"},el("div",{},el("div",{class:"date"},"твои достижения"),el("h1",{},"Мой путь"))));const g=gardenOn()?garden():null;if(g)app.append(gardenCard());app.append(el("div",{class:"card"},el("h2",{},"Мой прогресс"),el("div",{class:"grid3"},el("div",{},el("b",{},histCnt(1)),el("span",{class:"muted"},"дней с отметками")),el("div",{},el("b",{},(S.gifts&&S.gifts.bq)||0),el("span",{class:"muted"},"цветов в букете")),el("div",{},el("b",{},Math.max(0,...(c.habits||[]).map(streak))),el("span",{class:"muted"},"лучшая серия")))));app.append(badgesCard());app.append(supportBouquetCard(true))}
 /* ---------- вкладка «Клуб» ---------- */
 function fmtHM(at){try{return new Date(at).toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit",timeZone:"Europe/Moscow"})}catch(e){return ""}}
 
@@ -2274,7 +2293,7 @@ function firstDayCard(){const c=cfg();if((S.settings||{}).fdDone||clubDays()>7)r
   return el("div",{class:"card"},el("div",{class:"hrow"},el("h2",{},"Первый день за 3 минуты"),el("button",{class:"mini",type:"button","aria-label":"Скрыть",onclick:()=>setSettings({fdDone:TODAY})},"×")),ul,
     el("div",{class:"row2"},!steps[1][1]?el("button",{class:"btn ghost",type:"button",onclick:()=>{ob={step:4,data:Object.assign({},DEF,S.settings)};renderOb()}},"Выбрать привычки"):null,
       !steps[2][1]?el("button",{class:"btn",type:"button",onclick:()=>{zrGo(6,TODAY)}},"▶ Зарядка 6 минут"):null))}
-function renderMe(app){const c=cfg();app.append(el("div",{class:"hero"},el("div",{},el("div",{class:"date"},"мой путь"),el("h1",{},c.name?`Это я, ${c.name}`:"Это я"))));
+function renderMe(app){const c=cfg();app.append(el("div",{class:"hero"},el("div",{},el("div",{class:"date"},"личное пространство"),el("h1",{},"Моё"))));
   const days=histCnt(1),str=histCnt(2);
   app.append(el("div",{class:"card"},el("h2",{},"Мой путь в клубе"),el("div",{class:"grid3"},
     el("div",{},el("b",{style:"font-family:var(--display);font-size:1.6rem;display:block"},days),el("span",{class:"muted",style:"font-size:.8rem"},"дней с отметками")),
