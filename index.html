@@ -1388,7 +1388,7 @@ function renderObShort(){const app=$("app");app.replaceChildren();$("tabbar").hi
   if(s===1){wrap.append(dots,el("span",{class:"step"},"шаг 2 из 3"),el("h1",{},`${d.name?d.name+", в":"В"}ыбери до двух привычек`),el("p",{class:"muted"},"Это твои личные: их видишь только ты, в зачёт клуба они не идут. Поменять можно в любой момент."),
       habitPicker(d.habits||[],v=>{d.habits=v;renderOb()}),el("div",{class:"grow"}),el("button",{class:"btn full",type:"button",onclick:go},(d.habits||[]).length?`Дальше · выбрано ${d.habits.length}`:"Пропустить"),back)}
   if(s===2){const c=clubAct()||clubNextUp();
-    if(c){const dn=diffDays(c.start,TODAY);wrap.append(dots,el("span",{class:"step"},"шаг 3 из 3"),el("h1",{},"Последний шаг"),el("p",{class:"muted"},"Каждый месяц клуб вместе внедряет одну привычку: 21 день, лепесток за каждый день, а в конце — значок и подарок."),
+    if(c){const dn=diffDays(c.start,TODAY);wrap.append(dots,el("span",{class:"step"},"шаг 3 из 3"),el("h1",{},"Последний шаг"),el("p",{class:"muted"},"Каждый месяц клуб вместе внедряет одну привычку: 21 день, лепесток за каждый день, а в конце — цветок и значок."),
         el("div",{class:"card flc"},el("span",{class:"eyebrow"},dn>0?`старт ${fmtDate(c.start)}`:`идёт: день ${1-dn} из ${c.len}`),el("p",{class:"flt"},clubName(c)),c.desc?el("p",{style:"margin:0"},c.desc):null),el("div",{class:"grow"}),
         el("button",{class:"btn full",type:"button",onclick:()=>{ob.join=c.id;finishOb()}},"Вступаю"),el("button",{class:"btn ghost full",type:"button",onclick:()=>finishOb()},"Пока просто посмотреть"),back)}
     else wrap.append(dots,el("span",{class:"step"},"шаг 3 из 3"),el("h1",{},"Готово!"),el("p",{class:"muted"},"Новый челлендж клуба скоро стартует — бот напомнит."),el("div",{class:"grow"}),el("button",{class:"btn full",type:"button",onclick:()=>finishOb()},"Начать"),back)}
@@ -2036,7 +2036,7 @@ function chMark(ch,c){if(!ch)return;if((c&&isZr(c))||/зарядк/i.test(ch.tit
   setTimeout(checkChBadges,600);render();chCelebrate(nl.find(x=>x.id===ch.id),c)}
 function chMood(ch,v){const nl=(S.chs||[]).map(x=>x.id===ch.id?Object.assign({},x,{mood:Object.assign({},x.mood||{},{[TODAY]:v})}):x);haptic("light");setChs(nl)}
 function zrBtns(ch,c,canMark){const w=el("div",{class:"zrb"});
-  w.append(el("div",{class:"row2"},el("button",{class:"btn ghost",type:"button",onclick:()=>zrGo(6)},"6 минут"),el("button",{class:"btn ghost zr12",type:"button",onclick:()=>zrGo(12)},"12 минут")),
+  w.append(el("div",{class:"row2"},el("button",{class:"btn",type:"button",onclick:()=>zrGo(6)},"6 минут"),el("button",{class:"btn",type:"button",onclick:()=>zrGo(12)},"12 минут")),
     el("button",{class:"btn ghost full",type:"button",onclick:()=>zrGo(2)},"2 минуты"));
   if(canMark)w.append(el("span",{class:"muted",style:"font-size:.8rem;text-align:center"},"Лепесток раскроется, когда закончишь зарядку 🌸"));return w}
 function flowerCard(){const c=clubAct();const card=el("div",{class:"card flc"});
@@ -2062,7 +2062,7 @@ function flowerCard(){const c=clubAct();const card=el("div",{class:"card flc"});
   else{const last=clubLast();card.append(el("span",{class:"eyebrow"},"перерыв между челленджами"),el("p",{class:"flt"},"Итоги, голосование и новый старт"),el("button",{class:"btn ghost full",type:"button",onclick:()=>show("club")},"Открыть клуб"));
     if((!last||isZr(last))&&!(gardenOn()&&garden()))card.append(el("p",{class:"muted",style:"margin:6px 0 0;font-size:.9rem"},"А зарядку можно делать и в перерыве — привычка не теряется"),zrBtns(null,null,false))}
   return card}
-const CEL={7:["Первая неделя позади","Самые трудные дни уже позади. С этого места привычка начинает держаться сама.","Неделя"],14:["Две трети пути","Новизна прошла, а ты продолжаешь. Это и есть привычка.","Две недели"],full:["Цветок распустился","21 день — привычка теперь твоя. Ты в розыгрыше подарка клуба.","Три недели"],fin:["Финиш","Главное — дойти до конца. И это получилось.",""]};
+const CEL={7:["Первая неделя позади","Самые трудные дни уже позади. С этого места привычка начинает держаться сама.","Неделя"],14:["Две трети пути","Новизна прошла, а ты продолжаешь. Это и есть привычка.","Две недели"],full:["Цветок распустился","21 день — привычка теперь твоя. Ты вырастил свой цветок!","Три недели"],fin:["Финиш","Главное — дойти до конца. И это получилось.",""]};
 function chCelebrate(ch,c,force){if(!ch||!c)return;const P=chProg(ch,c.len);const got=new Set(ch.cel||[]);const reach=[7,14].filter(n=>P.opened>=n);const finNow=P.opened>=P.need||(P.cd>=c.len&&P.today);if(finNow)reach.push("fin");
   const hit=force||reach.filter(n=>!got.has(n)).pop();if(!hit)return;
   const nl=(S.chs||[]).map(x=>x.id===ch.id?Object.assign({},x,{cel:[...new Set([...got,...reach])]}):x);S.chs=nl;setBig("chs",nl);
@@ -2104,7 +2104,7 @@ function bdayCards(app){const c=cfg(),cur=TODAY,off=0,dd=parseKey(TODAY);
 function renderToday(app){cur=TODAY;const c=cfg(),dd=parseKey(TODAY);const pills=el("div",{class:"pills"});
   if(S.acc&&S.acc.kind==="trial")pills.append(el("span",{class:"pill",role:"button",tabindex:"0",style:"cursor:pointer",onclick:()=>openBot("plans")},`🎁 пробный: ${S.acc.daysLeft} ${plural(S.acc.daysLeft,"день","дня","дней")}`));
   app.append(el("header",{class:"hero"},el("div",{},el("div",{class:"date"},`${WDF[dd.getUTCDay()]}, ${fmtDate(TODAY)}`),el("h1",{},c.name?`Привет, ${c.name}`:"Привет!"),pills.childNodes.length?pills:null)));
-  bdayCards(app);{const ac=clubAct();const gz=gardenOn()&&garden()&&!(ac&&isZr(ac)&&myCh(ac));app.append(flowerCard());if(gz)app.append(gardenCard())}if(gardenOn()&&!ui.gSynced){ui.gSynced=1;gardenSync(true)}app.append(habitsCard());if(modOn("tasks"))app.append(todayPersonalCard());app.append(todayToolsCard())}
+  {const ac=clubAct();const gz=gardenOn()&&garden()&&!(ac&&isZr(ac)&&myCh(ac));app.append(flowerCard());if(gz)app.append(gardenCard())}if(gardenOn()&&!ui.gSynced){ui.gSynced=1;gardenSync(true)}}
 
 function renderPath(app){const c=cfg();app.append(el("div",{class:"hero"},el("div",{},el("div",{class:"date"},"твои достижения"),el("h1",{},"Мой путь"))));const g=gardenOn()?garden():null;if(g)app.append(gardenCard());app.append(el("div",{class:"card"},el("h2",{},"Мой прогресс"),el("div",{class:"grid3"},el("div",{},el("b",{},histCnt(1)),el("span",{class:"muted"},"дней с отметками")),el("div",{},el("b",{},(S.gifts&&S.gifts.bq)||0),el("span",{class:"muted"},"цветов в букете")),el("div",{},el("b",{},Math.max(0,...(c.habits||[]).map(streak))),el("span",{class:"muted"},"лучшая серия")))));app.append(badgesCard());app.append(supportBouquetCard(true))}
 /* ---------- вкладка «Клуб» ---------- */
