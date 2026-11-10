@@ -672,6 +672,11 @@ html,body{background:#ffffff!important;color:#111111}
 .tabbar .in{display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:2px;max-width:520px;width:100%}
 .tabbar .in button{min-width:0;max-width:100%;width:100%;white-space:nowrap;font-size:clamp(.57rem,2.4vw,.69rem);padding:7px 0}
 .tabbar .in svg{width:21px;height:21px;flex-shrink:0}
+/* v41: без зелёного — ч/б + красный, как во всём Life by Me */
+:root,:root[data-theme="dark"],:root[data-theme="light"],body,body[data-skin],:root[data-theme="dark"] body,:root[data-theme="dark"] body[data-skin],:root:not([data-theme="light"]) body[data-skin]{--sage:#111111;--sage-soft:#f4f4f4}
+.note{background:#f6f6f6;border-left:3px solid var(--rose);border-radius:0 14px 14px 0;color:var(--ink)}
+.status.ok{background:#f1f1f1;color:#111111}
+.bar i{background:#111111}
 </style>
 </head>
 <body>
@@ -1097,7 +1102,7 @@ function zrAutoMark(){const gOk=gardenRec();const chs=S.chs||[];let hit=null,lat
     const w=ch.club?((c&&c.win)||ch.win):null;if(w&&!inWin(w)){late=true;return ch}
     hit=ch;if(ch.club)clubApi("mark",{ch:ch.club,day:TODAY,v:1,av:myAv()}).then(()=>clubStats());return Object.assign({},ch,{marks:Object.assign({},ch.marks,{[TODAY]:1})})});
   if(hit){S.chs=nl;setBig("chs",nl);setTimeout(()=>toast("Лепесток раскрыт ✓"),1200);setTimeout(()=>chCelebrate(nl.find(x=>x.id===hit.id),(S.club||[]).find(x=>x.id===hit.club)),1400)}
-  else if(!late&&!clubAct()){const last=clubLast(),mine=myCh(last);if(last&&mine&&isZr(last)&&TODAY>=shift(mine.start,last.len)){const kp=Object.assign({},mine.keep||{},{[TODAY]:1});setChs((S.chs||[]).map(x=>x.id===mine.id?Object.assign({},x,{keep:kp}):x))}}else if(late)setTimeout(()=>toast("Зарядка сделана. В челлендж засчитывается с 6:00 до 11:00 по Москве"),1600);
+  else if(!late&&!clubAct()){const last=clubLast(),mine=myCh(last);if(last&&mine&&isZr(last)&&TODAY>=shift(mine.start,last.len)){const kp=Object.assign({},mine.keep||{},{[TODAY]:1});setChs((S.chs||[]).map(x=>x.id===mine.id?Object.assign({},x,{keep:kp}):x))}}else if(late)setTimeout(()=>toast(`Зарядка сделана. В челлендж засчитывается с ${zrWin()[0]} до ${zrWin()[1]} по Москве`),1600);
   if(!hit&&!late&&gardenOn()&&garden())setTimeout(()=>toast(gOk?"День в саду ✓ 🌱":`Зарядка сделана. В сад засчитывается с ${zrWin()[0]} до ${zrWin()[1]} по Москве`),1300)}
 function plDoneKeys(){const keys=new Set();if(!PL)return keys;const lastIdx=PL.done?PL.steps.length:PL.i;const byEx={};PL.steps.forEach((s,j)=>{if(s.kind==="work"){byEx[s.key]=byEx[s.key]||[];byEx[s.key].push(j)}});
   Object.entries(byEx).forEach(([k,js])=>{if(js.every(j=>j<lastIdx))keys.add(k)});return keys}
@@ -1449,7 +1454,7 @@ function checkBadges(silent){S.bdg=S.bdg||{};const fresh=[];BADGES.forEach(([id,
    Засчитывается только зарядка с таймером в утреннее окно. Каждые 21 день подряд — новый цветок в саду (навсегда).
    Спасательный круг: держать можно один; потратила — новый вырастает вместе со следующим цветком.
    Пропуск без круга — серия с нуля, сад остаётся. */
-const GARDEN_FROM="2026-11-18",ZR_WIN=["06:00","11:00"];
+const GARDEN_FROM="2026-11-18",ZR_WIN=["05:00","14:00"];
 function gardenOn(){return TODAY>=(S.clubGarden||GARDEN_FROM)}
 function zrWin(){const z=(S.club||[]).filter(isZr).sort((a,b)=>a.start<b.start?1:-1)[0];return (z&&z.win)||ZR_WIN}
 function zrClubChs(){return (S.chs||[]).filter(ch=>ch.club&&isZr((S.club||[]).find(x=>x.id===ch.club)||ch))}
@@ -2326,7 +2331,7 @@ function renderMe(app){const c=cfg();app.append(el("div",{class:"hero"},el("div"
     row("День рождения",bi?bi.date:"—"),
     el("button",{class:"btn ghost",type:"button",onclick:()=>{ob={step:1,data:Object.assign({},DEF,S.settings)};renderOb()}},"Изменить настройки")));
   app.append(notifyCard());
-  app.append(el("p",{class:"muted",style:"font-size:.8rem;text-align:center;margin:8px 0 0"},(SRV.on?"Данные хранятся на сервере клуба в России. Цикл, вес и самочувствие — только на этом телефоне.":inTG?"Данные сохраняются в твоём Telegram. Цикл, вес и самочувствие — только на этом телефоне.":"Превью: данные хранятся только в этом браузере.")+" · версия 40"))}
+  app.append(el("p",{class:"muted",style:"font-size:.8rem;text-align:center;margin:8px 0 0"},(SRV.on?"Данные хранятся на сервере клуба в России. Цикл, вес и самочувствие — только на этом телефоне.":inTG?"Данные сохраняются в твоём Telegram. Цикл, вес и самочувствие — только на этом телефоне.":"Превью: данные хранятся только в этом браузере.")+" · версия 41"))}
 
 /* ================= boot ================= */
 async function boot(){document.body.dataset.skin="kar";render();

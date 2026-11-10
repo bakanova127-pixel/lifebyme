@@ -758,7 +758,8 @@ async function activeChallenge(orLast) {
 }
 async function challengeReminders() {
   const c = await activeChallenge(false); if (!c || !c.win) return 0;
-  const today = mskDay(), t = mskMin(), from = hm(c.win[0]), to = hm(c.win[1]); let sent = 0;
+  // remind в club.json — во сколько слать утреннее напоминание (по умолчанию начало окна)
+  const today = mskDay(), t = mskMin(), from = hm(c.remind || c.win[0]), to = hm(c.win[1]); let sent = 0;
   const n = Math.round((Date.parse(today) - Date.parse(c.start)) / DAY) + 1;
   let kind = null;
   if (t >= from && t < from + 30) kind = "m"; else if (t >= to - 30 && t < to - 5) kind = "l";
