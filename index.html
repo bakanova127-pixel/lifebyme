@@ -677,6 +677,37 @@ html,body{background:#ffffff!important;color:#111111}
 .note{background:#f6f6f6;border-left:3px solid var(--rose);border-radius:0 14px 14px 0;color:var(--ink)}
 .status.ok{background:#f1f1f1;color:#111111}
 .bar i{background:#111111}
+/* v42: тёмная тема — та же ч/б + красный, только наоборот */
+:root{--petal:#D4D4D4;--petal2:#BDBDBD}
+.prow .pchip:not([aria-pressed="true"]){filter:grayscale(1);opacity:.55}.prow .pchip:not([aria-pressed="true"]):hover{opacity:.85}
+.grid3.stats>div{display:flex;flex-direction:column;gap:2px}.grid3.stats b{font-size:1.6rem;font-weight:300;line-height:1.1}.grid3.stats span{font-size:.8rem;line-height:1.25}
+.srow.thm{align-items:center;flex-wrap:wrap}
+.thsw{display:flex;border:1px solid var(--ink)}.thsw button{border:0;background:transparent;color:var(--ink);font:inherit;font-size:.8rem;padding:7px 10px;min-height:36px;cursor:pointer}
+.thsw button+button{border-left:1px solid var(--ink)}.thsw button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+:root[data-theme="dark"],:root[data-theme="dark"] body,:root[data-theme="dark"] body[data-skin],:root[data-theme="dark"] body[data-skin="kar"]{--bg:#121212;--paper:#1b1b1b;--ink:#f2f2f2;--muted:#9c9c9c;--line:#2d2d2d;--rose:#ff4a40;--rose-soft:#3b1c1a;--on-accent:#ffffff;--sage:#f2f2f2;--sage-soft:#232323;--butter:#ff4a40;--sky:#ff4a40;--sky-soft:#3b1c1a;--petal:#444;--petal2:#5a5a5a;--shadow:none;color-scheme:dark}
+:root[data-theme="dark"],:root[data-theme="dark"] body{background:#121212!important;color:#f2f2f2}
+:root[data-theme="dark"] .tabbar,:root[data-theme="dark"] body[data-skin="kar"] .tabbar{background:#121212;border-top-color:#2d2d2d}
+:root[data-theme="dark"] body[data-skin="kar"] .brand{background:#000;border-bottom:1px solid #2d2d2d}
+:root[data-theme="dark"] body[data-skin="kar"] .btn.ghost::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 150 46' preserveAspectRatio='none'%3E%3Cpath d='M8 10 C40 2 112 3 142 10 C148 22 145 33 137 39 C100 46 40 44 13 39 C3 30 2 18 8 10Z' fill='none' stroke='%23f2f2f2' stroke-width='1.5' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E")}
+:root[data-theme="dark"] body[data-skin="kar"] input,:root[data-theme="dark"] body[data-skin="kar"] textarea,:root[data-theme="dark"] body[data-skin="kar"] select{border-bottom-color:#6a6a6a;color:var(--ink)}
+:root[data-theme="dark"] input::placeholder,:root[data-theme="dark"] textarea::placeholder{color:#777}
+:root[data-theme="dark"] select option{background:#1b1b1b;color:#f2f2f2}
+:root[data-theme="dark"] body[data-skin="kar"] .chip{border-color:#6a6a6a}
+:root[data-theme="dark"] body[data-skin="kar"] .chip[aria-pressed="true"]{background:#f2f2f2;border-color:#f2f2f2;color:#111}
+:root[data-theme="dark"] body[data-skin="kar"] .check .ring{border-color:#8a8a8a}
+:root[data-theme="dark"] body[data-skin="kar"] .clubboard .who span{background:#f2f2f2;color:#111}
+:root[data-theme="dark"] body[data-skin="kar"] .chday.yes{background:#f2f2f2;border-color:#f2f2f2;color:#111}
+:root[data-theme="dark"] body[data-skin="kar"] .glass .f{fill:#3b1c1a}:root[data-theme="dark"] body[data-skin="kar"] .glass .r{stroke:#bdbdbd}
+:root[data-theme="dark"] body[data-skin="kar"] .toast{background:#f2f2f2;color:#111}
+:root[data-theme="dark"] .note{background:#1f1f1f}
+:root[data-theme="dark"] .status.ok{background:#262626;color:#f2f2f2}
+:root[data-theme="dark"] .bar i{background:#f2f2f2}
+:root[data-theme="dark"] .av{background:#262626}
+:root[data-theme="dark"] body[data-skin="kar"] .pl{--plbg:#121212;--plcard:#1b1b1b;--plsoft:#262626;--plrest:#e5e5e5}
+:root[data-theme="dark"] .pl .bdg.r{background:rgba(255,255,255,.14)}
+:root[data-theme="dark"] .support-bouquet img{border-radius:18px}
+:root[data-theme="dark"] .tile,:root[data-theme="dark"] body[data-skin="kar"] .tile{background:transparent}
+:root[data-theme="dark"] img[src*="welcome"]{filter:none}
 </style>
 </head>
 <body>
@@ -699,7 +730,9 @@ const inTG=!!(tg&&tg.initData);
 const ver=v=>!!(tg&&tg.isVersionAtLeast&&tg.isVersionAtLeast(v));
 if(!inTG)document.body.classList.add("preview");
 function haptic(kind){try{if(!inTG||!tg.HapticFeedback)return;if(kind==="success")tg.HapticFeedback.notificationOccurred("success");else tg.HapticFeedback.impactOccurred(kind||"light")}catch(e){}}
-function applyTgTheme(){if(!inTG)return;document.documentElement.setAttribute("data-theme",tg.colorScheme==="dark"?"dark":"light");
+function themeMode(){try{return (S.settings&&S.settings.theme)||"auto"}catch(e){return "auto"}}
+function applyTgTheme(){const m=themeMode();const sys=inTG?tg.colorScheme==="dark":!!(window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches);
+  document.documentElement.setAttribute("data-theme",m==="dark"||(m==="auto"&&sys)?"dark":"light");if(!inTG)return;
   setTimeout(()=>{try{const bg=getComputedStyle(document.body).getPropertyValue("--bg").trim();if(ver("6.1")){tg.setHeaderColor(bg);tg.setBackgroundColor(bg)}if(ver("7.10"))tg.setBottomBarColor(getComputedStyle(document.body).getPropertyValue("--paper").trim())}catch(e){}},0)}
 if(inTG){try{tg.ready();tg.expand();if(ver("7.7"))tg.disableVerticalSwipes();tg.onEvent("themeChanged",applyTgTheme)}catch(e){}applyTgTheme()}
 
@@ -1467,7 +1500,7 @@ function garden(){const set=zrDaySet();const cs=zrClubChs().map(ch=>ch.from&&ch.
     if(n%21===0){f++;buoy=1}if(n>best)best=n}
   return {n,f,buoy,best,start,last,lost:n<=3?lost:null,today:!!set[TODAY],grow:n%21}}
 function gBest(){const g=garden();return g?g.best:0}
-function gFlower(k,size){let s="";for(let i=0;i<21;i++)s+=`<ellipse cx="0" cy="-58" rx="10" ry="36" transform="rotate(${(i*360/21).toFixed(2)})" fill="${i<k?"var(--rose)":"var(--paper)"}" stroke="${i<k?"var(--rose)":"#D4D4D4"}" stroke-width="${i<k?1:3}"/>`;
+function gFlower(k,size){let s="";for(let i=0;i<21;i++)s+=`<ellipse cx="0" cy="-58" rx="10" ry="36" transform="rotate(${(i*360/21).toFixed(2)})" fill="${i<k?"var(--rose)":"var(--paper)"}" stroke="${i<k?"var(--rose)":"var(--petal)"}" stroke-width="${i<k?1:3}"/>`;
   return svgEl("-100 -100 200 200",s+'<circle r="30" fill="var(--paper)" stroke="var(--ink)" stroke-width="3"/>')}
 /* записать день сада: зарядка закончена в утреннее окно */
 function gardenRec(){if(!inWin(zrWin()))return false;if(!(S.zrd||{})[TODAY]){S.zrd=Object.assign({},S.zrd,{[TODAY]:1});setBig("zrd",S.zrd)}
@@ -1486,7 +1519,7 @@ function gardenCard(){const g=garden();if(!g)return null;const w=zrWin();const o
   if(g.lost)card.append(el("p",{class:"muted",style:"margin:0;font-size:.9rem"},`Серия ${g.lost} ${plural(g.lost,"день","дня","дней")} прервалась — начинаем заново. Сад остаётся твоим 🌱`));
   if(g.today)card.append(el("p",{class:"gline",style:"margin:0"},"Сегодняшний день в саду ✓ До завтра ☀️"));
   else if(open)card.append(zrBtns(null,null,false),el("p",{class:"gline",style:"margin:0"},`Засчитывается зарядка до ${w[1]} по Москве`));
-  else card.append(el("p",{class:"gline",style:"margin:0"},mskNow()<tmMin(w[0])?`Зарядка в сад — с ${w[0]} до ${w[1]} по Москве`:`Сегодня в сад уже не засчитать. Завтра с ${w[0]} ☀️`),zrBtns(null,null,false));
+  else card.append(el("p",{class:"gline",style:"margin:0"},mskNow()<tmMin(w[0])?`Зарядка в сад — с ${w[0]} до ${w[1]} по Москве`:`Сад на сегодня закрылся 🌙 Завтра с ${w[0]} — снова растём ☀️`),zrBtns(null,null,false));
   return card}
 /* таблица серий в «Клубе» */
 function gardenBoard(box){const t=S.gTop;if(!t&&!ui.gLoad){ui.gLoad=1;gardenSync(true)}
@@ -2031,8 +2064,8 @@ function chProg(ch,len){const end=shift(ch.start,len-1);const last=TODAY>end?end
   const buoy=missed[0]||null;const pre=Math.max(0,diffDays(from,ch.start));return {done,missed,buoy,opened:done+(buoy?1:0),need:len-pre,pre,from,cd:diffDays(TODAY,ch.start)+1,end,today:ch.marks[TODAY]===1}}
 let flowerSvgSerial=0;
 function flowerSvg(ch,len){const P=ch?chProg(ch,len):null;const gid="challengePetal"+(++flowerSvgSerial);let s=`<defs><radialGradient id="${gid}" cx="35%" cy="20%" r="90%"><stop offset="0" stop-color="#ff8470"/><stop offset=".5" stop-color="#e84135"/><stop offset="1" stop-color="#c51e25"/></radialGradient></defs>`;const rx=len>24?8:10;
-  for(let i=0;i<len;i++){const k=ch?shift(ch.start,i):"";let f="var(--paper)",st="#D4D4D4",w=1,da="";
-    if(ch){if(ch.marks[k]===1){f=`url(#${gid})`;st="var(--rose)"}else if(k<P.from){f="var(--line)";st="var(--line)"}else if(k===P.buoy){f="var(--rose-soft)";st="var(--rose)";da=' stroke-dasharray="5 3"'}else if(k===TODAY){st="var(--rose)";w=2.6}else if(k<TODAY){st="#BDBDBD";da=' stroke-dasharray="2 4"'}}
+  for(let i=0;i<len;i++){const k=ch?shift(ch.start,i):"";let f="var(--paper)",st="var(--petal)",w=1,da="";
+    if(ch){if(ch.marks[k]===1){f=`url(#${gid})`;st="var(--rose)"}else if(k<P.from){f="var(--line)";st="var(--line)"}else if(k===P.buoy){f="var(--rose-soft)";st="var(--rose)";da=' stroke-dasharray="5 3"'}else if(k===TODAY){st="var(--rose)";w=2.6}else if(k<TODAY){st="var(--petal2)";da=' stroke-dasharray="2 4"'}}
     s+=`<ellipse cx="0" cy="-58" rx="${rx}" ry="36" transform="rotate(${(i*360/len).toFixed(2)})" fill="${f}" stroke="${st}" stroke-width="${w}"${da}/>`}
   return svgEl("-100 -100 200 200",s+'<circle r="34" fill="var(--paper)" stroke="var(--ink)" stroke-width="1"/>')}
 function flowerIco(on){return svgEl("-10 -10 20 20",["0 -5","5 0","0 5","-5 0"].map(p=>`<circle cx="${p.split(" ")[0]}" cy="${p.split(" ")[1]}" r="4" fill="${on?"var(--rose)":"var(--line)"}"/>`).join("")+'<circle r="2.4" fill="var(--paper)"/>')}
@@ -2057,7 +2090,7 @@ function flowerCard(){const c=clubAct();const card=el("div",{class:"card flc"});
     if(P.today){const md=(ch.mood||{})[TODAY];
       if(!md)card.append(el("span",{class:"muted",style:"font-size:.9rem"},"Как сегодня? Одно слово"),el("div",{class:"moods"},...MOODS.map((m,i)=>el("button",{class:"chip",type:"button",onclick:()=>chMood(ch,i+1)},m))));
       else card.append(el("span",{class:"muted",style:"font-size:.9rem"},`Сегодня: ${MOODS[md-1]}. До завтра 🌸`))}
-    else if(!open){card.append(el("p",{class:"muted",style:"margin:0"},mskNow()<tmMin(w[0])?`Отметка откроется в ${w[0]} по Москве`:`Сегодня отметиться уже нельзя. Завтра с ${w[0]} — новый лепесток`));if(isZr(c))card.append(zrBtns(ch,c,false))}
+    else if(!open){card.append(el("p",{class:"muted",style:"margin:0"},mskNow()<tmMin(w[0])?`Отметка откроется в ${w[0]} по Москве`:`Сегодняшний лепесток уже спит 🌙 Завтра с ${w[0]} — новый. А зарядку можно сделать и просто для себя`));if(isZr(c))card.append(zrBtns(ch,c,false))}
     else if(isZr(c))card.append(zrBtns(ch,c,true));
     else card.append(el("button",{class:"btn full",type:"button",onclick:()=>chMark(ch,c)},"Отметиться"));
     const st=(S.clubStat||{})[c.id];const g=S.gifts;
@@ -2113,7 +2146,7 @@ function renderToday(app){cur=TODAY;const c=cfg(),dd=parseKey(TODAY);const pills
   app.append(el("header",{class:"hero"},el("div",{},el("div",{class:"date"},`${WDF[dd.getUTCDay()]}, ${fmtDate(TODAY)}`),el("h1",{},c.name?`Привет, ${c.name}`:"Привет!"),pills.childNodes.length?pills:null)));
   {const ac=clubAct();const gz=gardenOn()&&garden()&&!(ac&&isZr(ac)&&myCh(ac));app.append(flowerCard());if(gz)app.append(gardenCard())}if(gardenOn()&&!ui.gSynced){ui.gSynced=1;gardenSync(true)}}
 
-function renderPath(app){const c=cfg();app.append(el("div",{class:"hero"},el("div",{},el("div",{class:"date"},"твои достижения"),el("h1",{},"Мой путь"))));const g=gardenOn()?garden():null;if(g)app.append(gardenCard());app.append(el("div",{class:"card"},el("h2",{},"Мой прогресс"),el("div",{class:"grid3"},el("div",{},el("b",{},histCnt(1)),el("span",{class:"muted"},"дней с отметками")),el("div",{},el("b",{},(S.gifts&&S.gifts.bq)||0),el("span",{class:"muted"},"цветов в букете")),el("div",{},el("b",{},Math.max(0,...(c.habits||[]).map(streak))),el("span",{class:"muted"},"лучшая серия")))));app.append(badgesCard());app.append(supportBouquetCard(true))}
+function renderPath(app){const c=cfg();app.append(el("div",{class:"hero"},el("div",{},el("div",{class:"date"},"твои достижения"),el("h1",{},"Мой путь"))));const g=gardenOn()?garden():null;if(g)app.append(gardenCard());app.append(el("div",{class:"card"},el("h2",{},"Мой прогресс"),el("div",{class:"grid3 stats"},el("div",{},el("b",{},histCnt(1)),el("span",{class:"muted"},"дней с отметками")),el("div",{},el("b",{},(S.gifts&&S.gifts.bq)||0),el("span",{class:"muted"},"цветов в букете")),el("div",{},el("b",{},Math.max(0,...(c.habits||[]).map(streak))),el("span",{class:"muted"},"лучшая серия")))));app.append(badgesCard());app.append(supportBouquetCard(true))}
 /* ---------- вкладка «Клуб» ---------- */
 function fmtHM(at){try{return new Date(at).toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit",timeZone:"Europe/Moscow"})}catch(e){return ""}}
 
@@ -2329,9 +2362,10 @@ function renderMe(app){const c=cfg();app.append(el("div",{class:"hero"},el("div"
     row("Тренировки",`${trn} в неделю`),
     row("Вода",`${fmtN(c.water*.25)} л`),
     row("День рождения",bi?bi.date:"—"),
+    el("div",{class:"srow thm"},el("span",{class:"muted"},"Тема"),el("div",{class:"thsw",role:"group","aria-label":"Тема"},[["auto","как в Telegram"],["light","светлая"],["dark","тёмная"]].map(([v,t])=>el("button",{type:"button","aria-pressed":themeMode()===v?"true":"false",onclick:()=>{haptic("light");setSettings({theme:v});applyTgTheme();render()}},t)))),
     el("button",{class:"btn ghost",type:"button",onclick:()=>{ob={step:1,data:Object.assign({},DEF,S.settings)};renderOb()}},"Изменить настройки")));
   app.append(notifyCard());
-  app.append(el("p",{class:"muted",style:"font-size:.8rem;text-align:center;margin:8px 0 0"},(SRV.on?"Данные хранятся на сервере клуба в России. Цикл, вес и самочувствие — только на этом телефоне.":inTG?"Данные сохраняются в твоём Telegram. Цикл, вес и самочувствие — только на этом телефоне.":"Превью: данные хранятся только в этом браузере.")+" · версия 41"))}
+  app.append(el("p",{class:"muted",style:"font-size:.8rem;text-align:center;margin:8px 0 0"},(SRV.on?"Данные хранятся на сервере клуба в России. Цикл, вес и самочувствие — только на этом телефоне.":inTG?"Данные сохраняются в твоём Telegram. Цикл, вес и самочувствие — только на этом телефоне.":"Превью: данные хранятся только в этом браузере.")+" · версия 42"))}
 
 /* ================= boot ================= */
 async function boot(){document.body.dataset.skin="kar";render();
