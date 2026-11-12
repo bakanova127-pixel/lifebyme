@@ -175,7 +175,10 @@ async function sendPay(chat, u) {
   return tg("sendMessage", { chat_id: chat, text: T.payManual(ADMIN_NICK()) });
 }
 const kbPay = () => ({ inline_keyboard: [[{ text: "💳 Тарифы и оплата", callback_data: "plans" }], [btnApp("Открыть приложение")]] });
-const kbCh = () => ({ inline_keyboard: [[btnApp("☀️ Открыть и отметиться")], [{ text: "🔕 Не напоминать про челлендж", callback_data: "choff" }]] });
+// кнопки сразу запускают зарядку нужной длины: приложение открывается с ?zr=2|6|12 и включает таймер
+const appZr = (min) => { const u = new URL(APP_URL()); u.searchParams.set("zr", String(min)); return u.toString(); };
+const btnZr = (min) => ({ text: `▶️ ${min} мин`, web_app: { url: appZr(min) } });
+const kbCh = () => ({ inline_keyboard: [[btnZr(2), btnZr(6), btnZr(12)], [btnApp("☀️ Открыть приложение")], [{ text: "🔕 Не напоминать про челлендж", callback_data: "choff" }]] });
 
 // ---------- закрытый канал клуба ----------
 async function clubLink() {

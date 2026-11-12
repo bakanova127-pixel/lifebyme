@@ -2365,7 +2365,7 @@ function renderMe(app){const c=cfg();app.append(el("div",{class:"hero"},el("div"
     el("div",{class:"srow thm"},el("span",{class:"muted"},"Тема"),el("div",{class:"thsw",role:"group","aria-label":"Тема"},[["auto","как в Telegram"],["light","светлая"],["dark","тёмная"]].map(([v,t])=>el("button",{type:"button","aria-pressed":themeMode()===v?"true":"false",onclick:()=>{haptic("light");setSettings({theme:v});applyTgTheme();render()}},t)))),
     el("button",{class:"btn ghost",type:"button",onclick:()=>{ob={step:1,data:Object.assign({},DEF,S.settings)};renderOb()}},"Изменить настройки")));
   app.append(notifyCard());
-  app.append(el("p",{class:"muted",style:"font-size:.8rem;text-align:center;margin:8px 0 0"},(SRV.on?"Данные хранятся на сервере клуба в России. Цикл, вес и самочувствие — только на этом телефоне.":inTG?"Данные сохраняются в твоём Telegram. Цикл, вес и самочувствие — только на этом телефоне.":"Превью: данные хранятся только в этом браузере.")+" · версия 42"))}
+  app.append(el("p",{class:"muted",style:"font-size:.8rem;text-align:center;margin:8px 0 0"},(SRV.on?"Данные хранятся на сервере клуба в России. Цикл, вес и самочувствие — только на этом телефоне.":inTG?"Данные сохраняются в твоём Telegram. Цикл, вес и самочувствие — только на этом телефоне.":"Превью: данные хранятся только в этом браузере.")+" · версия 43"))}
 
 /* ================= boot ================= */
 async function boot(){document.body.dataset.skin="kar";render();
@@ -2381,7 +2381,10 @@ async function boot(){document.body.dataset.skin="kar";render();
   for(let i=0;i<keep.length;i+=20){const part=await store.getMany(keep.slice(i,i+20));for(const [k,v] of Object.entries(part)){const d=parse(v);if(d)S.days[k.slice(2)]=d}}
   S.wm=(await getBig(keys,"wm"))||[];S.letters=(await getBig(keys,"letters"))||[];S.wmi={};{const ik=keys.filter(k=>k.startsWith("wmi_"));for(let i=0;i<ik.length;i+=20){const part=await store.getMany(ik.slice(i,i+20));for(const [k,v] of Object.entries(part))if(v)S.wmi[k.slice(4)]=v}}
   S.hist=(await getBig(keys,"hist"))||{};S.bdg=(await getBig(keys,"bdg"))||{};let hch=false;for(const [k,d] of Object.entries(S.days)){const m=dayMask(d);if(m&&(S.hist[k]||0)!==m){S.hist[k]=m;hch=true}}if(hch)setBig("hist",S.hist);if(S.settings&&S.settings.onboarded&&S.settings.skin!=="kar"){S.settings=Object.assign({},S.settings,{skin:"kar"});store.set("settings",S.settings)}checkBadges(true);setTimeout(checkChBadges,1500);const mvN=carryOver();if(mvN)setTimeout(()=>toast(`Перенесла на сегодня ${mvN} ${plural(mvN,"дело","дела","дел")} со вчера ↪`),900);clubLoad();if(!S.acc)accLoad();remSync();
-  document.body.dataset.skin=curSkin();applyTgTheme();ob={step:0,data:null};loaded=true;render()}
+  document.body.dataset.skin=curSkin();applyTgTheme();ob={step:0,data:null};loaded=true;render();autoZr()}
+/* кнопка «▶️ 6 мин» в боте открывает приложение с ?zr=6 — сразу запускаем зарядку */
+function autoZr(){let m=0;try{const q=new URLSearchParams(location.search);m=+q.get("zr")||0;const sp=inTG&&tg.initDataUnsafe&&tg.initDataUnsafe.start_param;if(!m&&sp&&/^zr(2|6|12)$/.test(sp))m=+sp.slice(2);if(q.has("zr")){q.delete("zr");history.replaceState(null,"",location.pathname+(q.toString()?"?"+q:"")+location.hash)}}catch(e){}
+  if(![2,6,12].includes(m)||!S.settings||!S.settings.onboarded)return;setTimeout(()=>{try{zrGo(m)}catch(e){}},250)}
 boot();
 </script>
 </body>
